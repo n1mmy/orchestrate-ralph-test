@@ -1,0 +1,6 @@
+# Claude Code agent worktrees
+.claude/worktrees/
+
+# Conversation handoff documents
+handoff.md
+HANDOFF.md
