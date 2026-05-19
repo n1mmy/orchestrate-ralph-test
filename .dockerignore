@@ -1,0 +1,15 @@
+# Things the image must never see — either build noise or things that grow it
+# without purpose.
+node_modules
+.next
+.git
+.github
+.claude
+.scratch
+.env
+.env.local
+*.tsbuildinfo
+handoff.md
+HANDOFF.md
+README.md
+docs

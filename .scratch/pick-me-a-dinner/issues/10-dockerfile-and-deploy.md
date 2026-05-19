@@ -1,6 +1,6 @@
 # 10 — Dockerfile, GHCR workflow, startup checks
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -54,18 +54,22 @@ carries placeholders only. The Postgres connection is plain (no
 
 ## Acceptance criteria
 
-- [ ] The multi-stage Dockerfile builds the app (pnpm, Next.js `standalone`)
+- [x] The multi-stage Dockerfile builds the app (pnpm, Next.js `standalone`)
       and the slim non-root `runner` `CMD` runs the app only — no migration
       step — bundling the `drizzle/` migration files for the schema check
-- [ ] `.github/workflows/build.yml` builds and pushes the image to GHCR on
+- [x] `.github/workflows/build.yml` builds and pushes the image to GHCR on
       push to `main` and on tags
-- [ ] On boot, `checkEnvOnBoot` exits non-zero with a loud message on a missing
+- [x] On boot, `checkEnvOnBoot` exits non-zero with a loud message on a missing
       required env var or an invalid `APP_TZ`
-- [ ] On boot, a DB behind the bundled migrations produces the loud specific
+- [x] On boot, a DB behind the bundled migrations produces the loud specific
       `schema-check` message and a non-zero exit; a DB at the current migration
       boots normally; an unreachable DB logs a warning and continues
-- [ ] The `/api/ready` route returns 200 when the DB is reachable, 503 when not
+- [x] The `/api/ready` route returns 200 when the DB is reachable, 503 when not
 
 ## Blocked by
 
 - 01 — Walking skeleton (needs migrations to exist)
+
+## Comments
+
+- 2026-05-19: Multi-stage Dockerfile (deps/builder/runner, node:22-alpine, non-root `nextjs`, `CMD ["node","server.js"]`, bundles `drizzle/` for the schema check). `next.config.ts` switched to `output: "standalone"`. GHCR workflow `.github/workflows/build.yml` on push to `main` / tags, tags via `docker/metadata-action` (`latest` + `sha` on default branch, `ref` on tags), GHA build cache. `lib/check-env.ts` (`envProblems` + `checkEnvOnBoot` exiting 1) and `lib/schema-check.ts` (`schemaCheckResult` pure decision + `runSchemaCheck` reading `drizzle/meta/_journal.json` and `drizzle.__drizzle_migrations`, behind→exit, ahead→tolerate, unreachable→warn-and-continue), wired through `instrumentation.ts` for the `nodejs` runtime. `/api/ready` route handler returns 200/503 on `select 1`, `force-dynamic`. Gate green: `pnpm typecheck`, `pnpm lint`, `pnpm test` (15 tests), `pnpm build` (emits `.next/standalone/server.js`).
