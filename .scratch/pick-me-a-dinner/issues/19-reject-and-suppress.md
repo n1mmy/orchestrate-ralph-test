@@ -1,6 +1,6 @@
 # 19 — Reject and suppress
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -25,21 +25,21 @@ A submitted Rejection removes the Option from the deterministic Tonight list imm
 
 ## Acceptance criteria
 
-- [ ] A `rejections` table (Option FK `ON DELETE CASCADE`, optional `reason`, `rejected_on` date, `created_at` timestamptz, `rejections_rejected_on_idx` index) added to `db/schema.ts` with a `Rejection` `$inferSelect` type, and a Drizzle migration `drizzle/0002_*.sql`
-- [ ] An Option's hard-delete is not blocked by its Rejections (the cascade removes them)
-- [ ] `app/rejection-actions.ts` exports an `authedAction`-wrapped `rejectOption(optionId, reason)` that inserts a `rejections` row dated `today()`, stores a blank/whitespace reason as `null`, revalidates the affected views, and rejects an unauthenticated caller
-- [ ] `rejectOption` returns an inline `ActionResult` error for a stale/malformed Option id rather than throwing a 500
-- [ ] Every Tonight picker row carries a secondary, low-emphasis Reject control subordinate to Pick, in both picker mode and decided mode's reopened picker
-- [ ] Tapping Reject inline-expands an autofocused reason form with Submit and Cancel (not a modal); the reason is optional; Cancel records nothing
-- [ ] Submit records the Rejection dated today and the row drops out of the list on revalidation
-- [ ] A `getTodayRejections(todaySqlDate)` query returns today's Rejections joined to their active Options, newest `created_at` first, typed as `TodayRejection`
-- [ ] `app/page.tsx` derives today's rejected Option ids and removes them from the ranked picker rows after `rankTonight`; the suppression survives a page reload
-- [ ] A rejected Option reappears on its own the next calendar day with no day-boundary logic
-- [ ] Rejecting every remaining Option yields an honest `allRejected` empty-list state, distinct from a genuinely empty Catalog
-- [ ] `lib/ranking.ts`, the Score, and `rankTonight`'s tests are unchanged — suppression is a presentation filter
-- [ ] Rejecting works with no `ANTHROPIC_API_KEY` set
-- [ ] The Reject control, reason input, Submit, and Cancel are keyboard-operable with visible focus and adequate touch targets; the Reject button carries `aria-expanded` / `aria-controls`, and the row's removal is announced to assistive tech
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and `pnpm build` passes with no env vars set
+- [x] A `rejections` table (Option FK `ON DELETE CASCADE`, optional `reason`, `rejected_on` date, `created_at` timestamptz, `rejections_rejected_on_idx` index) added to `db/schema.ts` with a `Rejection` `$inferSelect` type, and a Drizzle migration `drizzle/0002_*.sql`
+- [x] An Option's hard-delete is not blocked by its Rejections (the cascade removes them)
+- [x] `app/rejection-actions.ts` exports an `authedAction`-wrapped `rejectOption(optionId, reason)` that inserts a `rejections` row dated `today()`, stores a blank/whitespace reason as `null`, revalidates the affected views, and rejects an unauthenticated caller
+- [x] `rejectOption` returns an inline `ActionResult` error for a stale/malformed Option id rather than throwing a 500
+- [x] Every Tonight picker row carries a secondary, low-emphasis Reject control subordinate to Pick, in both picker mode and decided mode's reopened picker
+- [x] Tapping Reject inline-expands an autofocused reason form with Submit and Cancel (not a modal); the reason is optional; Cancel records nothing
+- [x] Submit records the Rejection dated today and the row drops out of the list on revalidation
+- [x] A `getTodayRejections(todaySqlDate)` query returns today's Rejections joined to their active Options, newest `created_at` first, typed as `TodayRejection`
+- [x] `app/page.tsx` derives today's rejected Option ids and removes them from the ranked picker rows after `rankTonight`; the suppression survives a page reload
+- [x] A rejected Option reappears on its own the next calendar day with no day-boundary logic
+- [x] Rejecting every remaining Option yields an honest `allRejected` empty-list state, distinct from a genuinely empty Catalog
+- [x] `lib/ranking.ts`, the Score, and `rankTonight`'s tests are unchanged — suppression is a presentation filter
+- [x] Rejecting works with no `ANTHROPIC_API_KEY` set
+- [x] The Reject control, reason input, Submit, and Cancel are keyboard-operable with visible focus and adequate touch targets; the Reject button carries `aria-expanded` / `aria-controls`, and the row's removal is announced to assistive tech
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and `pnpm build` passes with no env vars set
 
 ## Blocked by
 

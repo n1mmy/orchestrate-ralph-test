@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getTonightData } from "@/db/queries";
+import { getTodayRejections, getTonightData } from "@/db/queries";
 import { today as todaySqlDate } from "@/lib/local-day";
 import { epochDayFromSqlDate } from "@/lib/local-day";
 import { rankTonight } from "@/lib/ranking";
@@ -40,7 +40,8 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const todaySql = todaySqlDate();
-  const { options, entries, todayEntries } = await getTonightData(todaySql);
+  const [{ options, entries, todayEntries }, todayRejections] =
+    await Promise.all([getTonightData(todaySql), getTodayRejections(todaySql)]);
 
   if (options.length === 0) {
     return (
@@ -71,16 +72,26 @@ export default async function HomePage() {
     decidedRows,
   );
 
-  // A later ticket (19, "Reject and suppress") filters the picker by
-  // tonight's Rejections. The slot is named `visiblePicker` already so the
-  // rejection-filter step lands without churning the prop shape.
-  const visiblePicker = picker;
+  // Suppression is a presentation filter only (ADR-0003, ADR-0006): the
+  // Score and `lib/ranking.ts` are untouched. Today's rejected Option ids
+  // are pulled from the dated `rejections` query, then filtered out of the
+  // ranked picker after `rankTonight` runs — same shape as the existing
+  // Tag filter. Because the query keys on `rejected_on = today`, a new
+  // calendar day empties the result on its own and a rejected Option
+  // reappears with no day-boundary code.
+  const rejectedIds = new Set(todayRejections.map((r) => r.optionId));
+  const visiblePicker = picker.filter((row) => !rejectedIds.has(row.option.id));
+  // `allRejected` is the honest empty-list state: the picker would have
+  // had rows, but every one has been rejected for tonight. Distinguishing
+  // this from a genuinely empty Catalog keeps the screen from going blank.
+  const allRejected = picker.length > 0 && visiblePicker.length === 0;
 
   return (
     <main className="column">
       <TonightScreen
         tonightsDinner={tonightsDinner}
         pickerRows={visiblePicker}
+        allRejected={allRejected}
       />
     </main>
   );

@@ -8,6 +8,13 @@
       "when": 1779224050121,
       "tag": "0000_peaceful_rogue",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779232019827,
+      "tag": "0002_curious_silvermane",
+      "breakpoints": true
     }
   ]
 }

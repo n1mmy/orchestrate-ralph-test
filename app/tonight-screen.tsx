@@ -45,14 +45,31 @@ import {
 export function TonightScreen({
   tonightsDinner,
   pickerRows,
+  allRejected = false,
 }: {
   tonightsDinner: TonightsDinnerEntry[];
   pickerRows: TonightRowData[];
+  /**
+   * True when every remaining picker row has been rejected for today —
+   * `pickerRows` is empty but the underlying ranked list was not. The
+   * screen renders an honest "Every Option has been rejected for tonight"
+   * state rather than a blank screen. Defaults to `false`.
+   */
+  allRejected?: boolean;
 }) {
   const decided = tonightsDinner.length > 0;
 
   const [kind, setKind] = useState<KindFilter>("all");
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
+  // The most-recent removal announcement, surfaced through a polite live
+  // region so assistive tech reads "<Option> removed from tonight's list"
+  // when the row drops out of the picker on a successful Reject. A timestamp
+  // suffix forces the live-region string to differ between consecutive
+  // rejections of identically-named Options.
+  const [removedAnnouncement, setRemovedAnnouncement] = useState("");
+  function announceRejected(name: string) {
+    setRemovedAnnouncement(`${name} removed from tonight's list`);
+  }
 
   const tags = useMemo(() => distinctTags(pickerRows), [pickerRows]);
   const visiblePicker = useMemo(
@@ -139,7 +156,12 @@ export function TonightScreen({
         ) : null}
 
         {pickerRows.length === 0 ? (
-          decided ? (
+          allRejected ? (
+            <p className="mt-sm text-body text-muted">
+              Every Option has been rejected for tonight. They&apos;ll be back
+              tomorrow.
+            </p>
+          ) : decided ? (
             <p className="mt-sm text-body text-muted">
               Every Option is already on tonight&apos;s dinner.
             </p>
@@ -151,9 +173,13 @@ export function TonightScreen({
             hint={hint}
             onTap={tap}
             visible={visiblePicker}
+            onRejected={announceRejected}
           />
         )}
       </section>
+      <p className="sr-only" role="status" aria-live="polite">
+        {removedAnnouncement}
+      </p>
     </>
   );
 }
@@ -170,12 +196,14 @@ function PickerFilters({
   hint,
   onTap,
   visible,
+  onRejected,
 }: {
   tags: string[];
   tagFilters: TagFilters;
   hint: string;
   onTap: (tag: string) => void;
   visible: TonightRowData[];
+  onRejected: (optionName: string) => void;
 }) {
   return (
     <>
@@ -203,7 +231,12 @@ function PickerFilters({
 
       <ol className="flex flex-col">
         {visible.map((row, idx) => (
-          <TonightRow key={row.option.id} rank={idx + 1} row={row} />
+          <TonightRow
+            key={row.option.id}
+            rank={idx + 1}
+            row={row}
+            onRejected={onRejected}
+          />
         ))}
       </ol>
     </>

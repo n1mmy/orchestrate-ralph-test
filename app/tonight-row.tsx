@@ -1,5 +1,6 @@
 import { kindBarClass } from "./kind-bar";
 import { PickButton } from "./pick-button";
+import { RejectControl } from "./reject-control";
 import { recencyChipBg, recencyChipBgStrong } from "@/lib/recency-color";
 import { CAP } from "@/lib/ranking.config";
 import type { TonightRow as TonightRowData } from "@/lib/ranking";
@@ -13,6 +14,12 @@ import type { TonightRow as TonightRowData } from "@/lib/ranking";
  * (the Option lands in the "Tonight's dinner" panel above the picker) —
  * that transition is the confirmation of a successful Pick.
  *
+ * The row's right edge stacks the primary `PickButton` above a secondary,
+ * low-emphasis `RejectControl` (ticket 19). The two-step Reject → Submit
+ * on `RejectControl` keeps Pick the obvious primary action and the
+ * mis-tap guard built-in. `onRejected` is the row's hook for the live
+ * region "removed" announcement on the parent list.
+ *
  * The Tonight ledger is a **flat, uniform list** (DESIGN.md / PRD §18): every
  * row the same shape, separated by a 1px `line` rule. No lead-option
  * prominence, no collapsed long tail, no per-row background tint. The single
@@ -23,18 +30,20 @@ import type { TonightRow as TonightRowData } from "@/lib/ranking";
 export function TonightRow({
   rank,
   row,
+  onRejected,
 }: {
   rank: number;
   row: TonightRowData;
+  onRejected?: (optionName: string) => void;
 }) {
   const { option, recencyDays, neverEaten, tags } = row;
   return (
     <li
-      className={`flex items-center gap-md border-b border-line py-md pl-sm ${kindBarClass(
+      className={`flex items-start gap-md border-b border-line py-md pl-sm ${kindBarClass(
         option.kind,
       )}`}
     >
-      <span className="font-mono text-meta text-muted tabular-nums w-[2ch] text-right">
+      <span className="font-mono text-meta text-muted tabular-nums w-[2ch] text-right pt-xs">
         {rank}
       </span>
       <div className="flex flex-1 flex-col gap-2xs">
@@ -46,7 +55,14 @@ export function TonightRow({
           ))}
         </div>
       </div>
-      <PickButton optionId={option.id} />
+      <div className="flex flex-col items-end gap-xs">
+        <PickButton optionId={option.id} />
+        <RejectControl
+          optionId={option.id}
+          optionName={option.name}
+          onRejected={() => onRejected?.(option.name)}
+        />
+      </div>
     </li>
   );
 }
