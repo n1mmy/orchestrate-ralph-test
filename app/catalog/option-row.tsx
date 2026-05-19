@@ -21,9 +21,11 @@ type Confirm = "none" | "archive" | "delete";
 export function OptionRow({
   option,
   tagSuggestions,
+  placesEnabled,
 }: {
   option: CatalogOption;
   tagSuggestions: string[];
+  placesEnabled?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState<Confirm>("none");
@@ -37,6 +39,7 @@ export function OptionRow({
           kind={option.kind}
           initial={option}
           tagSuggestions={tagSuggestions}
+          placesEnabled={placesEnabled}
           onDone={() => setEditing(false)}
         />
       </li>

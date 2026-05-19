@@ -11,13 +11,19 @@ import type { ActiveCatalog } from "@/db/queries";
  * The `tagSuggestions` prop flows through to every `OptionForm` so the
  * `TagInput` autocomplete can suggest existing Tags — there is no separate
  * Tags-management screen, so each form needs the whole set to filter against.
+ *
+ * The `placesEnabled` flag gates the Restaurant form's `PlacesSearchBox` —
+ * only the Restaurants section uses it; Home meals have no Places
+ * integration.
  */
 export function CatalogScreen({
   catalog,
   tagSuggestions,
+  placesEnabled = false,
 }: {
   catalog: ActiveCatalog;
   tagSuggestions: string[];
+  placesEnabled?: boolean;
 }) {
   const empty =
     catalog.home.length === 0 && catalog.restaurants.length === 0;
@@ -42,6 +48,7 @@ export function CatalogScreen({
         options={catalog.restaurants}
         addLabel="+ Add a restaurant"
         tagSuggestions={tagSuggestions}
+        placesEnabled={placesEnabled}
       />
     </main>
   );

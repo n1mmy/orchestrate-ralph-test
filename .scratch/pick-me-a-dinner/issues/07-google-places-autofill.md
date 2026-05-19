@@ -1,6 +1,6 @@
 # 07 — Google Places autofill for Restaurants
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -54,18 +54,18 @@ integration — this ticket touches only the Restaurant form.
 
 ## Acceptance criteria
 
-- [ ] `lib/places.ts` is a deep module with a small `PlacesClient` interface;
+- [x] `lib/places.ts` is a deep module with a small `PlacesClient` interface;
       all failure modes (network/quota/4xx/5xx/malformed/timeout) collapse to
       the one typed `PLACES_UNAVAILABLE`; each request carries an
       `AbortController` timeout
-- [ ] Selecting a Google result autofills all eight fields via `onAutofill`;
+- [x] Selecting a Google result autofills all eight fields via `onAutofill`;
       every field stays editable, and an already-filled `url` is kept (with the
       `urlKept` notice) rather than overwritten
-- [ ] With `GOOGLE_PLACES_API_KEY` unset, `placesEnabled` is false and the
+- [x] With `GOOGLE_PLACES_API_KEY` unset, `placesEnabled` is false and the
       `PlacesSearchBox` is not rendered
-- [ ] A Places request failure shows the inline `PLACES_UNAVAILABLE_NOTICE`;
+- [x] A Places request failure shows the inline `PLACES_UNAVAILABLE_NOTICE`;
       manual entry and save still work
-- [ ] Tests cover the Places client failure-collapse (`lib/places.test.ts`),
+- [x] Tests cover the Places client failure-collapse (`lib/places.test.ts`),
       the pure box logic (`app/catalog/places-box.test.ts` —
       `boxStateFromSearch`, `autofillFromPlace`), and the server actions
       key-unset path (`app/catalog/places-actions.test.ts`)
