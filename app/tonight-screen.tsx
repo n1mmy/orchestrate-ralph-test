@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { kindBarClass } from "./kind-bar";
-import { recencyChipBg, recencyChipBgStrong } from "@/lib/recency-color";
 import { TonightRow } from "./tonight-row";
-import { CAP } from "@/lib/ranking.config";
+import { TonightsDinnerBlock } from "./tonights-dinner-block";
 import type { TonightRow as TonightRowData } from "@/lib/ranking";
 import type { TonightsDinnerEntry } from "@/lib/tonights-dinner";
 import {
@@ -109,18 +107,7 @@ export function TonightScreen({
           : "Choosing tonight's dinner."}
       </p>
 
-      {decided ? (
-        <section aria-label="Tonight's dinner" className="pt-sm">
-          <h2 className="text-meta font-emphasis uppercase tracking-wide text-muted">
-            Tonight&apos;s dinner
-          </h2>
-          <ul className="mt-xs flex flex-col gap-xs">
-            {tonightsDinner.map((d) => (
-              <DecidedRow key={d.entryId} entry={d} />
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      {decided ? <TonightsDinnerBlock entries={tonightsDinner} /> : null}
 
       <section
         aria-label={decided ? "Add another option" : "Pick tonight's dinner"}
@@ -207,77 +194,6 @@ function PickerFilters({
         ))}
       </ol>
     </>
-  );
-}
-
-/**
- * One row inside the **Tonight's dinner** panel. Unlike the flat picker
- * ledger above, each decided row carries a much-lighter wash of its
- * meal-kind hue (`kind-home-wash` / `kind-restaurant-wash`) as its
- * background, so the decided area reads as a distinct settled panel —
- * DESIGN.md "Decided block". The row still carries the 3px meal-kind left
- * bar, the Option name, and the chips taken from `decidedRows` (recency as
- * it stood **before** tonight's Pick).
- *
- * Per-row action buttons ("Remove", etc.) land in later tickets (12, 13);
- * this is the canvas they hang on.
- */
-function DecidedRow({ entry }: { entry: TonightsDinnerEntry }) {
-  const { row } = entry;
-  const { option, recencyDays, neverEaten, tags } = row;
-  const wash =
-    option.kind === "home" ? "bg-kind-home-wash" : "bg-kind-restaurant-wash";
-  return (
-    <li
-      className={`flex items-center gap-md rounded-input py-md pl-sm pr-md ${wash} ${kindBarClass(
-        option.kind,
-      )}`}
-    >
-      <div className="flex flex-1 flex-col gap-2xs">
-        <span className="font-display text-name">{option.name}</span>
-        <div className="flex flex-wrap items-center gap-xs">
-          <RecencyChip recencyDays={recencyDays} neverEaten={neverEaten} />
-          {tags.map((t) => (
-            <TagChip key={t.tag} tag={t.tag} days={t.days} />
-          ))}
-        </div>
-      </div>
-    </li>
-  );
-}
-
-function RecencyChip({
-  recencyDays,
-  neverEaten,
-}: {
-  recencyDays: number;
-  neverEaten: boolean;
-}) {
-  const label = neverEaten
-    ? "new"
-    : recencyDays >= CAP
-      ? "60d+"
-      : `${recencyDays}d`;
-  return (
-    <span
-      className="rounded-badge px-xs py-2xs font-mono text-chip tabular-nums"
-      style={{ background: recencyChipBgStrong(recencyDays) }}
-    >
-      {label}
-    </span>
-  );
-}
-
-function TagChip({ tag, days }: { tag: string; days: number }) {
-  const label = days >= CAP ? "60d+" : `${days}d`;
-  return (
-    <span
-      className="rounded-badge px-xs py-2xs text-chip"
-      style={{ background: recencyChipBg(days) }}
-    >
-      <span>{tag} </span>
-      <span className="font-mono tabular-nums">{label}</span>
-    </span>
   );
 }
 

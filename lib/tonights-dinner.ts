@@ -19,7 +19,7 @@
  * fresh calendar day naturally empties `tonightsDinner`.
  */
 
-import type { TonightRow } from "./ranking";
+import type { RankOption, TonightRow } from "./ranking";
 
 /**
  * A `dinner_log` row dated today, in the shape `splitTonight` and the screen
@@ -98,4 +98,85 @@ export function splitTonight(
   );
 
   return { tonightsDinner, picker };
+}
+
+/**
+ * The three labels an action button on a Picked Option can carry. "Menu" and
+ * "Call" appear on a Picked Restaurant, "Recipe" on a Picked Home meal. The
+ * label is also the chosen surface text — "Menu" reads as the Restaurant's
+ * web link regardless of whether it actually points at a menu, an order
+ * page, or a delivery service. (A "Directions" button from `mapsUrl` was
+ * considered and deliberately left out.)
+ */
+export type DecidedActionLabel = "Menu" | "Call" | "Recipe";
+
+/**
+ * One action button surfaced on a Picked Option in the decided block. `href`
+ * is either a `tel:` URI (for "Call") or the Option's `url` (for "Menu" /
+ * "Recipe"). The `url` is filtered through `safeHttpUrl` upstream of the
+ * `{ label, href }` shape, so a stored `javascript:` or `data:` `url`
+ * disappears as a button rather than rendering an unsafe anchor.
+ */
+export type DecidedAction = {
+  label: DecidedActionLabel;
+  href: string;
+};
+
+/**
+ * The Option fields `decidedActions` reads. A subset of `RankOption` —
+ * `kind`, `url`, `phone`. Taking a structural subset rather than the full
+ * `RankOption` keeps the unit tests hand-buildable without padding every
+ * fixture with `id` / `name` / `tags`.
+ */
+type DecidedActionsInput = Pick<RankOption, "kind" | "url" | "phone">;
+
+/**
+ * The Catalog's `url` column is **free text** the Household types — it is
+ * never scheme-checked on save (CONTEXT.md). So before a `url` becomes a
+ * live action-button `href`, this guard runs: only `http://…` and
+ * `https://…` are admitted; a `javascript:` or `data:` URL yields `null` and
+ * disappears from the action row. Trimming covers stray whitespace; an
+ * unparseable URL also collapses to `null`.
+ *
+ * Returns the trimmed `url` string when safe, or `null` when not. Phone
+ * numbers go through a different (no-op) trust path — a `phone` is still
+ * trusted, so an unsafe `url` on a Restaurant with a phone still produces
+ * the "Call" button.
+ */
+export function safeHttpUrl(url: string | null): string | null {
+  if (url === null) return null;
+  const trimmed = url.trim();
+  if (trimmed === "") return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+  return trimmed;
+}
+
+/**
+ * The action buttons surfaced under a Picked Option's chip row. A Restaurant
+ * exposes "Menu" (when `url` is set and `http`/`https`) and "Call" (when
+ * `phone` is set). A Home meal exposes "Recipe" (when `url` is set and safe)
+ * — never "Menu" or "Call", even if a `phone` is somehow attached. Returns
+ * the empty array when no field is set, so a row with no action buttons
+ * simply renders no action row.
+ */
+export function decidedActions(option: DecidedActionsInput): DecidedAction[] {
+  const safeUrl = safeHttpUrl(option.url);
+  const actions: DecidedAction[] = [];
+  if (option.kind === "restaurant") {
+    if (safeUrl !== null) actions.push({ label: "Menu", href: safeUrl });
+    if (option.phone !== null && option.phone.trim() !== "") {
+      actions.push({ label: "Call", href: `tel:${option.phone.trim()}` });
+    }
+    return actions;
+  }
+  // Home meal: ignore `phone` entirely (it is always null at the query
+  // layer, but the rule holds even if something stray ends up here).
+  if (safeUrl !== null) actions.push({ label: "Recipe", href: safeUrl });
+  return actions;
 }

@@ -2,7 +2,7 @@ import { kindBarClass } from "./kind-bar";
 import { PickButton } from "./pick-button";
 import { recencyChipBg, recencyChipBgStrong } from "@/lib/recency-color";
 import { CAP } from "@/lib/ranking.config";
-import type { TonightRow as TonightRowData } from "@/lib/ranking";
+import type { TagRecency, TonightRow as TonightRowData } from "@/lib/ranking";
 
 /**
  * One row in the Tonight ranked list. Renders the rank number (Geist Mono),
@@ -39,15 +39,41 @@ export function TonightRow({
       </span>
       <div className="flex flex-1 flex-col gap-2xs">
         <span className="font-display text-name">{option.name}</span>
-        <div className="flex flex-wrap items-center gap-xs">
-          <RecencyChip recencyDays={recencyDays} neverEaten={neverEaten} />
-          {tags.map((t) => (
-            <TagChip key={t.tag} tag={t.tag} days={t.days} />
-          ))}
-        </div>
+        <RowChips
+          recencyDays={recencyDays}
+          neverEaten={neverEaten}
+          tags={tags}
+        />
       </div>
       <PickButton optionId={option.id} />
     </li>
+  );
+}
+
+/**
+ * The shared chip row — the Recency chip followed by one Tag chip per Tag —
+ * rendered identically on a picker row (`TonightRow`) and on a decided row
+ * (`DecidedRow` in `tonights-dinner-block.tsx`). DESIGN.md has no
+ * Explanation chip; the Recency chip and Tag chips together carry the
+ * numbers behind the Score. Exported so the decided block reuses this exact
+ * markup rather than diverging into a parallel chip row.
+ */
+export function RowChips({
+  recencyDays,
+  neverEaten,
+  tags,
+}: {
+  recencyDays: number;
+  neverEaten: boolean;
+  tags: TagRecency[];
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-xs">
+      <RecencyChip recencyDays={recencyDays} neverEaten={neverEaten} />
+      {tags.map((t) => (
+        <TagChip key={t.tag} tag={t.tag} days={t.days} />
+      ))}
+    </div>
   );
 }
 

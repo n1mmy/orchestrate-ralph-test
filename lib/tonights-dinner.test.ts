@@ -8,6 +8,8 @@
 import { describe, expect, it } from "vitest";
 import {
   type TodayLogEntry,
+  decidedActions,
+  safeHttpUrl,
   splitTonight,
 } from "./tonights-dinner";
 import type { RankOption, TonightRow } from "./ranking";
@@ -153,5 +155,187 @@ describe("splitTonight", () => {
       "e-alpha",
       "e-zeta",
     ]);
+  });
+});
+
+describe("safeHttpUrl", () => {
+  it("admits an http:// URL unchanged", () => {
+    expect(safeHttpUrl("http://example.com/menu")).toBe(
+      "http://example.com/menu",
+    );
+  });
+
+  it("admits an https:// URL unchanged", () => {
+    expect(safeHttpUrl("https://example.com/recipe")).toBe(
+      "https://example.com/recipe",
+    );
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(safeHttpUrl("  https://example.com  ")).toBe("https://example.com");
+  });
+
+  it("rejects a javascript: URL", () => {
+    expect(safeHttpUrl("javascript:alert(1)")).toBeNull();
+  });
+
+  it("rejects a data: URL", () => {
+    expect(safeHttpUrl("data:text/html,<script>alert(1)</script>")).toBeNull();
+  });
+
+  it("rejects an empty string", () => {
+    expect(safeHttpUrl("")).toBeNull();
+  });
+
+  it("rejects a whitespace-only string", () => {
+    expect(safeHttpUrl("   ")).toBeNull();
+  });
+
+  it("rejects a non-URL string", () => {
+    expect(safeHttpUrl("not a url at all")).toBeNull();
+  });
+
+  it("rejects null", () => {
+    expect(safeHttpUrl(null)).toBeNull();
+  });
+
+  it("rejects mailto:", () => {
+    expect(safeHttpUrl("mailto:hello@example.com")).toBeNull();
+  });
+
+  it("rejects ftp:", () => {
+    expect(safeHttpUrl("ftp://example.com/file")).toBeNull();
+  });
+});
+
+describe("decidedActions", () => {
+  it("Restaurant with both url and phone yields Menu then Call", () => {
+    const actions = decidedActions({
+      kind: "restaurant",
+      url: "https://aji-ichi.example.com",
+      phone: "+44 20 1234 5678",
+    });
+    expect(actions).toEqual([
+      { label: "Menu", href: "https://aji-ichi.example.com" },
+      { label: "Call", href: "tel:+44 20 1234 5678" },
+    ]);
+  });
+
+  it("Restaurant with only url yields just the Menu button", () => {
+    const actions = decidedActions({
+      kind: "restaurant",
+      url: "https://aji-ichi.example.com",
+      phone: null,
+    });
+    expect(actions).toEqual([
+      { label: "Menu", href: "https://aji-ichi.example.com" },
+    ]);
+  });
+
+  it("Restaurant with only phone yields just the Call button", () => {
+    const actions = decidedActions({
+      kind: "restaurant",
+      url: null,
+      phone: "+44 20 1234 5678",
+    });
+    expect(actions).toEqual([
+      { label: "Call", href: "tel:+44 20 1234 5678" },
+    ]);
+  });
+
+  it("Restaurant with neither field yields no action buttons", () => {
+    const actions = decidedActions({
+      kind: "restaurant",
+      url: null,
+      phone: null,
+    });
+    expect(actions).toEqual([]);
+  });
+
+  it("Home meal with url yields a Recipe button", () => {
+    const actions = decidedActions({
+      kind: "home",
+      url: "https://recipes.example.com/carbonara",
+      phone: null,
+    });
+    expect(actions).toEqual([
+      { label: "Recipe", href: "https://recipes.example.com/carbonara" },
+    ]);
+  });
+
+  it("Home meal without a url yields no action buttons", () => {
+    const actions = decidedActions({
+      kind: "home",
+      url: null,
+      phone: null,
+    });
+    expect(actions).toEqual([]);
+  });
+
+  it("Home meal never shows Menu or Call, even with a stray phone", () => {
+    const actions = decidedActions({
+      kind: "home",
+      url: null,
+      phone: "+44 20 9999 9999",
+    });
+    expect(actions).toEqual([]);
+  });
+
+  it("Home meal with a url ignores a stray phone — only Recipe", () => {
+    const actions = decidedActions({
+      kind: "home",
+      url: "https://recipes.example.com/carbonara",
+      phone: "+44 20 9999 9999",
+    });
+    expect(actions).toEqual([
+      { label: "Recipe", href: "https://recipes.example.com/carbonara" },
+    ]);
+  });
+
+  it("Restaurant with a javascript: url and no phone yields no buttons", () => {
+    const actions = decidedActions({
+      kind: "restaurant",
+      url: "javascript:alert(1)",
+      phone: null,
+    });
+    expect(actions).toEqual([]);
+  });
+
+  it("Restaurant with an unsafe url but a phone still yields the Call button", () => {
+    const actions = decidedActions({
+      kind: "restaurant",
+      url: "javascript:alert(1)",
+      phone: "+44 20 1234 5678",
+    });
+    expect(actions).toEqual([
+      { label: "Call", href: "tel:+44 20 1234 5678" },
+    ]);
+  });
+
+  it("Home meal with a data: url yields no Recipe button", () => {
+    const actions = decidedActions({
+      kind: "home",
+      url: "data:text/html,<script>alert(1)</script>",
+      phone: null,
+    });
+    expect(actions).toEqual([]);
+  });
+
+  it("Restaurant with a whitespace-only phone yields no Call button", () => {
+    const actions = decidedActions({
+      kind: "restaurant",
+      url: null,
+      phone: "   ",
+    });
+    expect(actions).toEqual([]);
+  });
+
+  it("Restaurant phone is trimmed in the tel: href", () => {
+    const actions = decidedActions({
+      kind: "restaurant",
+      url: null,
+      phone: "  555-1234  ",
+    });
+    expect(actions).toEqual([{ label: "Call", href: "tel:555-1234" }]);
   });
 });
