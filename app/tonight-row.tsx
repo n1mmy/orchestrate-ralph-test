@@ -1,4 +1,5 @@
 import { kindBarClass } from "./kind-bar";
+import { PickButton } from "./pick-button";
 import { recencyChipBg, recencyChipBgStrong } from "@/lib/recency-color";
 import { CAP } from "@/lib/ranking.config";
 import type { TonightRow as TonightRowData } from "@/lib/ranking";
@@ -7,7 +8,9 @@ import type { TonightRow as TonightRowData } from "@/lib/ranking";
  * One row in the Tonight ranked list. Renders the rank number (Geist Mono),
  * the 3px meal-kind left bar, the Option name as plain text (not yet a link
  * to `/catalog/[id]` — that comes in a later phase), the Recency chip, the
- * per-Tag chips, and a placeholder "Pick" button (wired in ticket 05).
+ * per-Tag chips, and the real "Pick" button (`PickButton`), which calls
+ * `pickTonight(optionId)` and briefly flips to "Logged ✓" while the
+ * revalidation re-sorts the list under it (ticket 05).
  *
  * The Tonight ledger is a **flat, uniform list** (DESIGN.md / PRD §18): every
  * row the same shape, separated by a 1px `line` rule. No lead-option
@@ -42,13 +45,7 @@ export function TonightRow({
           ))}
         </div>
       </div>
-      <button
-        type="button"
-        disabled
-        className="rounded-control bg-action px-md py-xs text-meta text-action-ink disabled:opacity-60"
-      >
-        Pick
-      </button>
+      <PickButton optionId={option.id} />
     </li>
   );
 }
