@@ -1,6 +1,6 @@
 # 06 — Tri-state tag filters on Tonight
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -49,15 +49,15 @@ but the underline/strikethrough affordances are the load-bearing signal.
 
 ## Acceptance criteria
 
-- [ ] The All/Home/Restaurant `KindSegment` (in the page header) filters the
+- [x] The All/Home/Restaurant `KindSegment` (in the page header) filters the
       Tonight list by Option kind
-- [ ] Tag chips cycle off → include → exclude → off via `cycleChipState`;
+- [x] Tag chips cycle off → include → exclude → off via `cycleChipState`;
       include shows only matching Options, exclude hides matching Options
-- [ ] `filterTonightRows` ANDs the kind segment and all tag filters together;
+- [x] `filterTonightRows` ANDs the kind segment and all tag filters together;
       the `filterHint` line states the active filter in words
-- [ ] Chip state is distinguishable in grayscale (underline / strikethrough)
+- [x] Chip state is distinguishable in grayscale (underline / strikethrough)
       and announced to screen readers via `aria-label` (`chipStateLabel`)
-- [ ] `lib/tonight-filter.test.ts` covers the off → include → exclude cycle
+- [x] `lib/tonight-filter.test.ts` covers the off → include → exclude cycle
       and that the kind segment and tag filters AND together
 
 ## Blocked by

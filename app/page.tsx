@@ -3,7 +3,7 @@ import { getTonightData } from "@/db/queries";
 import { today as todaySqlDate } from "@/lib/local-day";
 import { epochDayFromSqlDate } from "@/lib/local-day";
 import { rankTonight } from "@/lib/ranking";
-import { TonightRow } from "./tonight-row";
+import { TonightFilters } from "./tonight-filters";
 
 /**
  * The Tonight screen — the home screen. Renders the active Catalog ranked by
@@ -44,12 +44,7 @@ export default async function HomePage() {
 
   return (
     <main className="column">
-      <h1 className="font-display text-h1 font-semibold">Tonight</h1>
-      <ol className="flex flex-col">
-        {rows.map((row, idx) => (
-          <TonightRow key={row.option.id} rank={idx + 1} row={row} />
-        ))}
-      </ol>
+      <TonightFilters rows={rows} />
     </main>
   );
 }
