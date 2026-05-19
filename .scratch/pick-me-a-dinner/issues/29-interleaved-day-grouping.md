@@ -37,4 +37,6 @@ Extend `lib/dinner-grouping.test.ts` with full unit coverage for `groupByDay`, e
 
 ## Blocked by
 
-28 — Rejection uniqueness: UNIQUE(option_id, rejected_on)
+- 23 — Option detail page: merged History section + dinner-grouping module
+  (extends the `lib/dinner-grouping.ts` module introduced there; the
+  `UNIQUE` constraint of ticket 28 has no bearing on this pure module)

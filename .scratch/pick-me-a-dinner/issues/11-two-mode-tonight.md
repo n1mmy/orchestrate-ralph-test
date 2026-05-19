@@ -41,4 +41,7 @@ In decided mode the picker stays **open** below the "Tonight's dinner" block (th
 
 ## Blocked by
 
-- 01–10 (Phase 1 — the shipped v1 app)
+- 05 — Pick = log and the Log screen (decided mode keys off today's Log
+  entries, so the pick/log write path must exist)
+- 06 — Tri-state tag filters on Tonight (the picker keeps its filter zone
+  in both modes)

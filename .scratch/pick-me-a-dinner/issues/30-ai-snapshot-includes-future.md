@@ -36,4 +36,6 @@ Extend `lib/rejections.test.ts` and `lib/ai-search.test.ts` for the future-dated
 
 ## Blocked by
 
-29 — Interleaved day grouping: groupByDay over Log entries and Rejections
+- 21 — Feed AI search (widens the AI snapshot and its Rejections block
+  built there; this is AI-snapshot work, unrelated to the dinner-grouping
+  of ticket 29)

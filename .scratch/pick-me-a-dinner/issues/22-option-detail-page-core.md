@@ -83,4 +83,7 @@ in ticket 27.
 
 ## Blocked by
 
-- 19–21 (Phase 4 — Rejections) — the detail page reuses the Rejections data and `RejectionRow`
+- 12 — Action buttons on a picked Option (reuses the shared `RowChips`
+  exported from `app/tonight-row.tsx`; `rankOption` reuses `lib/ranking.ts`.
+  The detail page core builds header/Recency/Details only — the Rejections
+  reuse is ticket 24's concern, not this slice's)

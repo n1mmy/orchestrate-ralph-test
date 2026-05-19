@@ -43,4 +43,7 @@ Add `app/rejection-actions.db.test.ts`, modelled on `app/log/actions.db.test.ts`
 
 ## Blocked by
 
-30 — AI snapshot includes the future
+- 20 — Rejected tonight disclosure (folds `rejectOption` /
+  `deleteRejection` in `app/rejection-actions.ts` into the shared module)
+- 28 — Rejection uniqueness: UNIQUE(option_id, rejected_on) (the actions
+  map the `23505` collision the constraint produces)

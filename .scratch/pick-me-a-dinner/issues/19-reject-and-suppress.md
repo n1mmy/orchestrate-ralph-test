@@ -43,4 +43,6 @@ A submitted Rejection removes the Option from the deterministic Tonight list imm
 
 ## Blocked by
 
-- 14–18 (Phase 3 — AI search)
+- 11 — Two-mode Tonight (the Reject control sits on picker rows in both
+  picker mode and decided mode's reopened picker; rejecting is independent
+  of AI search — only the AI-feeding half, ticket 21, needs Phase 3)

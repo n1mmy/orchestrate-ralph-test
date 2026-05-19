@@ -72,4 +72,8 @@ identically wherever it is invoked (ADR-0007).
 
 ## Blocked by
 
-- 24 — Option detail page: Rejections in History + Bring-back parity
+- 19 — Reject and suppress (the Actions toolbar's Reject control reuses
+  `rejectOption`)
+- 22 — Option detail page: route, identity, and Recency (the page the
+  `OptionControls` "Actions" section is rendered into — independent of the
+  History work in 23/24)

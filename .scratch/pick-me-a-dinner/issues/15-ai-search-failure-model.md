@@ -75,4 +75,4 @@ Household can retry, or simply keep using the deterministic ranking.
 
 ## Blocked by
 
-- Ticket 14 — AI search: end-to-end skeleton
+- 14 — AI search: end-to-end skeleton

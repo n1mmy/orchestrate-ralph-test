@@ -35,8 +35,23 @@ code disagree, **the code wins**.
 
 ## Build sequence (33 tickets, six phases)
 
-The sequence is linear: each ticket's `Blocked by` names its predecessors, and
-the lowest-numbered `ready-for-agent` ticket is always safe to pick up next.
+The 33 tickets form a **dependency DAG**, not a linear chain. Each ticket's
+`Blocked by` section names only the tickets it *genuinely* builds on — a shared
+module it extends, a schema migration it follows, a screen it modifies — so a
+ticket becomes eligible the moment every ticket it is blocked by is
+`Status: done`. The Ralph orchestrator can therefore run several tickets per
+wave; the critical path is ~10 levels deep, not 33.
+
+The six phases below are a **narrative** grouping, not a build barrier — work
+crosses phase lines wherever the dependencies allow. In particular: Rejections
+(Phase 4) does not wait on AI search (Phase 3) — only ticket 21, which feeds
+Rejections *into* AI search, bridges them; the Option detail page (Phase 5)
+starts as soon as Phase 2 lands, independent of Phases 3–4; and the dated-
+Rejections foundation (ticket 28's `UNIQUE` migration) follows ticket 19
+directly rather than the whole detail-page phase. Within a phase the AI-search
+chain (14→15→16→17→18) and the detail-page page-file chain (22→23→24/25→26)
+remain mostly sequential because each ticket reworks the same module or screen
+file as its predecessor.
 
 **Phase 1 — v1, the core app (01–10).** Source: `.issues/pick-me-a-dinner-v1/PRD.md`.
 Walking skeleton → Catalog CRUD → Tags → Tonight ranked list → pick=log + Log

@@ -97,4 +97,4 @@ control are keyboard-reachable with a visible focus ring and have adequate
 
 ## Blocked by
 
-- Ticket 16 — AI search: result hardening and empty state
+- 16 — AI search: result hardening and empty state

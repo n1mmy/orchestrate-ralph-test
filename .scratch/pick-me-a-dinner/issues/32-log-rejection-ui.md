@@ -45,4 +45,5 @@ Visual styling is `DESIGN.md`'s call; this ticket fixes the controls and the int
 
 ## Blocked by
 
-31 — Rejection-management server actions + Log Rejections queries
+- 29 — Interleaved day grouping: groupByDay over Log entries and Rejections
+- 31 — Rejection-management server actions + Log Rejections queries

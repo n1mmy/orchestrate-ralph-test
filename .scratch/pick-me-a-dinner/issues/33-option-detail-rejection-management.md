@@ -35,4 +35,7 @@ The detail page gets **no** dated add-rejection form — creating a Rejection fo
 
 ## Blocked by
 
-32 — Log screen: interleaved Rejections and the shared RejectionRow
+- 24 — Option detail page: Rejections in History + Bring-back parity (the
+  merged History section this ticket reworks)
+- 32 — Log screen: interleaved Rejections and the shared RejectionRow
+  (provides the shared `RejectionRow` and the `groupByDay` rework)

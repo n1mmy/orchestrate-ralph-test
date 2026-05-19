@@ -116,5 +116,6 @@ yet hide in AI mode.
 
 ## Blocked by
 
-- Tickets 11–13 (Phase 2 — Tonight decided mode) — AI search renders inside the
-  decided-mode picker
+- 11 — Two-mode Tonight (the search box renders inside the decided-mode
+  picker in `app/tonight-screen.tsx`; the action buttons of 12/13 are not
+  on the AI-search path)

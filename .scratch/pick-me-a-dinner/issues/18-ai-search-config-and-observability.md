@@ -93,4 +93,4 @@ for clean per-call latencies).
 
 ## Blocked by
 
-- Ticket 17 — AI search: mode polish, habit reasoning, and accessibility
+- 17 — AI search: mode polish, habit reasoning, and accessibility
