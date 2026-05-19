@@ -9,6 +9,10 @@ import type { CatalogOption } from "@/db/queries";
  * A Catalog section — "Home meals" or "Restaurants". Renders its rows and an
  * inline-expand "+ Add" button. The add form expands in place below the
  * header; identical on phone and desktop.
+ *
+ * The `placesEnabled` flag is forwarded only to the Restaurants section so
+ * the `OptionForm` it renders can decide whether to show the Places search
+ * box. Home meals have no Places integration.
  */
 type Props = {
   title: string;
@@ -17,6 +21,7 @@ type Props = {
   addLabel: string;
   /** Every Tag name in the Catalog — passed through to the `OptionForm`. */
   tagSuggestions: string[];
+  placesEnabled?: boolean;
 };
 
 export function OptionSection({
@@ -25,6 +30,7 @@ export function OptionSection({
   options,
   addLabel,
   tagSuggestions,
+  placesEnabled,
 }: Props) {
   const [adding, setAdding] = useState(false);
 
@@ -46,6 +52,7 @@ export function OptionSection({
         <OptionForm
           kind={kind}
           tagSuggestions={tagSuggestions}
+          placesEnabled={placesEnabled}
           onDone={() => setAdding(false)}
         />
       ) : null}
@@ -55,6 +62,7 @@ export function OptionSection({
             key={option.id}
             option={option}
             tagSuggestions={tagSuggestions}
+            placesEnabled={placesEnabled}
           />
         ))}
       </ul>
