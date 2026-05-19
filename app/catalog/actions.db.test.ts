@@ -15,20 +15,25 @@ import {
   archiveOption,
   createOption,
   deleteOption,
+  updateOption,
 } from "./actions";
-import { dinnerLog, options } from "@/db/schema";
+import { dinnerLog, optionTags, options, tags } from "@/db/schema";
 
 const sql = postgres(process.env.DATABASE_URL ?? "", { max: 1 });
 const db = drizzle(sql);
 
 beforeAll(async () => {
   await db.delete(dinnerLog);
+  await db.delete(optionTags);
   await db.delete(options);
+  await db.delete(tags);
 });
 
 afterEach(async () => {
   await db.delete(dinnerLog);
+  await db.delete(optionTags);
   await db.delete(options);
+  await db.delete(tags);
 });
 
 afterAll(async () => {
@@ -93,5 +98,81 @@ describe("Catalog server actions", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toBe("Enter a name");
+  });
+
+  it("attaches tags via option_tags rows and persists them", async () => {
+    const create = await createOption("home", {
+      name: "Spaghetti",
+      tags: ["pasta", "italian"],
+    });
+    expect(create.ok).toBe(true);
+    if (!create.ok) return;
+
+    const rows = await db
+      .select({ name: tags.name })
+      .from(optionTags)
+      .innerJoin(tags, eq(tags.id, optionTags.tagId))
+      .where(eq(optionTags.optionId, create.value.id));
+    expect(rows.map((r) => r.name).sort()).toEqual(["italian", "pasta"]);
+  });
+
+  it("reuses an existing case-insensitively matching tag — adding 'Pasta' when 'pasta' exists creates no duplicate", async () => {
+    const first = await createOption("home", {
+      name: "Spaghetti",
+      tags: ["pasta"],
+    });
+    expect(first.ok).toBe(true);
+
+    const second = await createOption("home", {
+      name: "Penne",
+      tags: ["Pasta"],
+    });
+    expect(second.ok).toBe(true);
+
+    const allTags = await db.select().from(tags);
+    expect(allTags).toHaveLength(1);
+    // Stored as the canonical (normalized) name.
+    expect(allTags[0].name).toBe("pasta");
+  });
+
+  it("normalizes and dedupes the incoming tag set on update", async () => {
+    const create = await createOption("restaurant", { name: "Aji Ichi" });
+    expect(create.ok).toBe(true);
+    if (!create.ok) return;
+
+    const update = await updateOption(create.value.id, "restaurant", {
+      name: "Aji Ichi",
+      tags: ["Sushi", "  sushi  ", "japanese", ""],
+    });
+    expect(update.ok).toBe(true);
+
+    const rows = await db
+      .select({ name: tags.name })
+      .from(optionTags)
+      .innerJoin(tags, eq(tags.id, optionTags.tagId))
+      .where(eq(optionTags.optionId, create.value.id));
+    expect(rows.map((r) => r.name).sort()).toEqual(["japanese", "sushi"]);
+  });
+
+  it("update replaces the Option's tag set", async () => {
+    const create = await createOption("home", {
+      name: "Tacos",
+      tags: ["mexican", "spicy"],
+    });
+    expect(create.ok).toBe(true);
+    if (!create.ok) return;
+
+    const update = await updateOption(create.value.id, "home", {
+      name: "Tacos",
+      tags: ["mexican"],
+    });
+    expect(update.ok).toBe(true);
+
+    const rows = await db
+      .select({ name: tags.name })
+      .from(optionTags)
+      .innerJoin(tags, eq(tags.id, optionTags.tagId))
+      .where(eq(optionTags.optionId, create.value.id));
+    expect(rows.map((r) => r.name)).toEqual(["mexican"]);
   });
 });

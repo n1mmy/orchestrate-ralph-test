@@ -15,9 +15,17 @@ type Props = {
   kind: "home" | "restaurant";
   options: CatalogOption[];
   addLabel: string;
+  /** Every Tag name in the Catalog — passed through to the `OptionForm`. */
+  tagSuggestions: string[];
 };
 
-export function OptionSection({ title, kind, options, addLabel }: Props) {
+export function OptionSection({
+  title,
+  kind,
+  options,
+  addLabel,
+  tagSuggestions,
+}: Props) {
   const [adding, setAdding] = useState(false);
 
   return (
@@ -35,11 +43,19 @@ export function OptionSection({ title, kind, options, addLabel }: Props) {
         ) : null}
       </header>
       {adding ? (
-        <OptionForm kind={kind} onDone={() => setAdding(false)} />
+        <OptionForm
+          kind={kind}
+          tagSuggestions={tagSuggestions}
+          onDone={() => setAdding(false)}
+        />
       ) : null}
       <ul className="flex flex-col">
         {options.map((option) => (
-          <OptionRow key={option.id} option={option} />
+          <OptionRow
+            key={option.id}
+            option={option}
+            tagSuggestions={tagSuggestions}
+          />
         ))}
       </ul>
     </section>

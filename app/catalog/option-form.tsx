@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { TagInput } from "./tag-input";
 import { TextField } from "./text-field";
 import { createOption, updateOption, type OptionFormValues } from "./actions";
 import type { CatalogOption } from "@/db/queries";
@@ -13,16 +14,25 @@ import type { CatalogOption } from "@/db/queries";
  * field error from the server action (§17 — "Loading / empty / blank-name
  * error / saved-in-place"). On success the server `revalidatePath("/catalog")`
  * refreshes the screen and the form's `onDone` collapses it back in place.
+ *
+ * The `TagInput` autocomplete token input lives between the kind-specific
+ * fields and the form's submit row — there is no separate Tags-management
+ * screen, so this is the only place a Household creates or changes a Tag.
+ * Tag tokens flow into the form's state and are submitted alongside the
+ * Option's columns; the server action re-normalizes before any DB write.
  */
 type Props = {
   kind: "home" | "restaurant";
   initial?: CatalogOption;
+  /** Every Tag name in the Catalog — drives the `TagInput` autocomplete. */
+  tagSuggestions: string[];
   onDone: () => void;
 };
 
-export function OptionForm({ kind, initial, onDone }: Props) {
+export function OptionForm({ kind, initial, tagSuggestions, onDone }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [tagValue, setTagValue] = useState<string[]>(initial?.tags ?? []);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -37,6 +47,7 @@ export function OptionForm({ kind, initial, onDone }: Props) {
       lat: optional(formData.get("lat")),
       lng: optional(formData.get("lng")),
       googlePlaceId: optional(formData.get("googlePlaceId")),
+      tags: tagValue,
     };
     startTransition(async () => {
       const result = initial
@@ -118,6 +129,11 @@ export function OptionForm({ kind, initial, onDone }: Props) {
           />
         </>
       )}
+      <TagInput
+        value={tagValue}
+        suggestions={tagSuggestions}
+        onChange={setTagValue}
+      />
       <div className="flex gap-sm">
         <button
           type="submit"

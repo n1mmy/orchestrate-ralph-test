@@ -1,18 +1,30 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { options } from "@/db/schema";
+import { optionTags, options, tags } from "@/db/schema";
 import { authedAction } from "@/lib/authed-action";
 import { type ActionResult, err, ok } from "@/lib/action-result";
+import { normalizeTag } from "@/lib/normalize-tag";
 import { pgErrorMessage } from "@/lib/pg-error";
+
+/**
+ * The transaction-scoped Drizzle handle. We use the type of `db.transaction`'s
+ * callback parameter so `syncOptionTags` can be called from any transaction
+ * the action layer opens, without re-importing internal Drizzle types.
+ */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * Values a create/update form submits for an Option. The Restaurant-only
  * fields are accepted on every call — empty strings collapse to `null` so a
  * Home meal form leaves them unset, and a Restaurant form fills only the ones
  * the Household typed.
+ *
+ * `tags` carries the raw Tag names the Household typed; the server normalizes
+ * again via `normalizeTag` before any DB write so a stale client cannot bypass
+ * the `tags.lower(name)` unique index.
  */
 export type OptionFormValues = {
   name: string;
@@ -25,6 +37,8 @@ export type OptionFormValues = {
   lat?: string;
   lng?: string;
   googlePlaceId?: string;
+  // Tags — raw strings; the server re-normalizes before writing.
+  tags?: string[];
 };
 
 /** Trim a form string and collapse blanks to `null` — the DB stores `null`. */
@@ -78,8 +92,88 @@ function valuesForKind(
 }
 
 /**
+ * Resolve a Tag name to its `tags.id`, reusing an existing row when the name
+ * already exists (case-insensitively).
+ *
+ * The strategy is an idempotent `insert ... on conflict do nothing` against
+ * the `tags.lower(name)` unique index, with a `select` fallback for the
+ * conflict case. The retry-once is the subtle part: under a concurrent
+ * same-Tag insert the loser's `on conflict do nothing` returns no row *and*
+ * the loser's first `select` can miss the winner's not-yet-committed row.
+ * One retry is enough because the winner's transaction has committed by then.
+ *
+ * The Tag name passed in is assumed to be already normalized by the caller
+ * (`syncOptionTags` filters and normalizes the incoming set); we still pass
+ * the normalized value to keep the data clean and the unique index honest.
+ */
+export async function resolveTagId(tx: Tx, name: string): Promise<string> {
+  const canonical = normalizeTag(name);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    // No `target` — the `tags` table has exactly one unique index
+    // (`tags_lower_name_unique` on `lower(name)`), so `on conflict do
+    // nothing` falls on it. `returning` is empty when the conflict swallowed
+    // the insert; that is the signal to fall through to the `select`.
+    const inserted = await tx
+      .insert(tags)
+      .values({ name: canonical })
+      .onConflictDoNothing()
+      .returning({ id: tags.id });
+    if (inserted.length > 0) return inserted[0].id;
+
+    const found = await tx
+      .select({ id: tags.id })
+      .from(tags)
+      .where(sql`lower(${tags.name}) = ${canonical}`)
+      .limit(1);
+    if (found.length > 0) return found[0].id;
+  }
+  // The race window cannot stay open across two attempts — the loser's
+  // winning sibling transaction has committed by the second `select`. If we
+  // genuinely land here, the DB is in an unexpected state and a thrown error
+  // is correct.
+  throw new Error(`resolveTagId: could not resolve tag "${canonical}"`);
+}
+
+/**
+ * Replace the Option's Tag set with the given raw names. Runs inside the
+ * caller's transaction so the Option write and the Tag sync commit
+ * atomically — half-applied state is impossible.
+ *
+ * The incoming names are normalized via `normalizeTag` and deduped through a
+ * `Set` (blank entries are filtered out); then the Option's existing
+ * `option_tags` rows are deleted and re-inserted against the resolved tag
+ * ids. Re-using `resolveTagId` means "Pasta" attached when "pasta" already
+ * exists reuses the existing row rather than duplicating it.
+ *
+ * Tag edits are not retroactive — only matters once ranking exists
+ * (ticket 04), but the data model here must not assume otherwise: we never
+ * mutate `tags.name`, only attach and detach `option_tags` rows.
+ */
+export async function syncOptionTags(
+  tx: Tx,
+  optionId: string,
+  rawTags: string[],
+): Promise<void> {
+  const canonical = Array.from(
+    new Set(rawTags.map(normalizeTag).filter((t) => t !== "")),
+  );
+
+  await tx.delete(optionTags).where(eq(optionTags.optionId, optionId));
+
+  if (canonical.length === 0) return;
+
+  const ids = await Promise.all(canonical.map((name) => resolveTagId(tx, name)));
+  // Defensive dedupe — two distinct names can never resolve to the same id
+  // under the unique index, but the typing does not enforce that.
+  const uniqueIds = Array.from(new Set(ids));
+  await tx
+    .insert(optionTags)
+    .values(uniqueIds.map((tagId) => ({ optionId, tagId })));
+}
+
+/**
  * Create a new Option. The write runs inside a transaction so the Tag sync
- * (ticket 03) commits atomically with it. A blank name is rejected inline.
+ * commits atomically with it. A blank name is rejected inline.
  */
 export const createOption = authedAction(
   async (
@@ -92,7 +186,7 @@ export const createOption = authedAction(
         .insert(options)
         .values(valuesForKind(kind, values))
         .returning({ id: options.id });
-      // Tag sync (ticket 03) will run here, in the same transaction.
+      await syncOptionTags(tx, inserted.id, values.tags ?? []);
       return inserted;
     });
     revalidatePath("/catalog");
@@ -115,7 +209,7 @@ export const updateOption = authedAction(
         .update(options)
         .set(valuesForKind(kind, values))
         .where(eq(options.id, id));
-      // Tag sync (ticket 03) will run here, in the same transaction.
+      await syncOptionTags(tx, id, values.tags ?? []);
     });
     revalidatePath("/catalog");
     return ok();
@@ -157,3 +251,4 @@ export const deleteOption = authedAction(
     return ok();
   },
 );
+
