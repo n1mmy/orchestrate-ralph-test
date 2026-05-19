@@ -1,6 +1,6 @@
 # 02 — Catalog: Options CRUD
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -59,23 +59,27 @@ with a visible `<label>`.
 
 ## Acceptance criteria
 
-- [ ] Home meals and Restaurants load via `getActiveCatalog()`, render in two
+- [x] Home meals and Restaurants load via `getActiveCatalog()`, render in two
       sections each showing the Option name, and add/edit via an inline-expand
       `OptionForm` identical on phone and desktop
-- [ ] `archiveOption` sets `active = false`; archived Options drop out of the
+- [x] `archiveOption` sets `active = false`; archived Options drop out of the
       default Catalog list and Tonight, Log history untouched
-- [ ] `deleteOption` hard-deletes an Option with zero Log entries
-- [ ] Deleting an Option with Log history catches the `ON DELETE RESTRICT`
+- [x] `deleteOption` hard-deletes an Option with zero Log entries
+- [x] Deleting an Option with Log history catches the `ON DELETE RESTRICT`
       (`23503`) via `pgErrorMessage` and returns the inline "In your log —
       archive instead" message — no error page
-- [ ] Destructive actions require an inline "Delete/Archive · Cancel" confirm
+- [x] Destructive actions require an inline "Delete/Archive · Cancel" confirm
       step (no modal, no undo)
-- [ ] Loading (`loading.tsx`) / empty / blank-name error / saved-in-place
+- [x] Loading (`loading.tsx`) / empty / blank-name error / saved-in-place
       states match §17 for Catalog
-- [ ] `app/catalog/actions.db.test.ts` covers: archive sets `active = false`;
+- [x] `app/catalog/actions.db.test.ts` covers: archive sets `active = false`;
       hard-delete blocked for a logged Option and allowed for an unlogged one;
       blank name rejected with "Enter a name"
 
 ## Blocked by
 
 - 01 — Walking skeleton (schema, scaffold, design tokens)
+
+## Comments
+
+- 2026-05-19: Implemented `getActiveCatalog()` in `db/queries.ts` (active Options ordered by name, split into `home`/`restaurants`, carrying Tag names — the Tag join is a left-join so the shape is stable when ticket 03 lands), the four server actions in `app/catalog/actions.ts` (`createOption`/`updateOption` wrap their writes in a `db.transaction` so ticket 03's Tag sync commits atomically), and the inline-expand `OptionForm` / `OptionRow` / `OptionSection` / `CatalogScreen` components. `lib/action-result.ts` carries the shared `ActionResult` type; `lib/pg-error.ts`'s `pgErrorMessage` translates `23503` into "In your log — archive instead"; `lib/authed-action.ts` is the pass-through that ticket 08 will replace. `/catalog` is `force-dynamic`; loading state in `loading.tsx`; empty-state copy "Add a meal or restaurant to get started"; destructive actions follow §17 inline-confirm. DB test in `actions.db.test.ts` (out of the worker gate; runs via `pnpm test:db`); component tests cover the inline-confirm cluster, blank-name error, restaurant-only fields, and the saved-in-place collapse. Gate green: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`.
