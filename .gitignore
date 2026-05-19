@@ -4,3 +4,17 @@
 # Conversation handoff documents
 handoff.md
 HANDOFF.md
+
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+next-env.d.ts
+
+# Env files
+.env
+.env.local
+
+# Test / TS artifacts
+*.tsbuildinfo
