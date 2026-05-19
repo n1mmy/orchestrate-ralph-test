@@ -39,6 +39,15 @@ describe("TonightRow", () => {
     expect(screen.getByRole("button", { name: "Pick" })).toBeDefined();
   });
 
+  it("renders a secondary Reject control next to Pick", () => {
+    render(
+      <ol>
+        <TonightRow rank={1} row={row()} />
+      </ol>,
+    );
+    expect(screen.getByRole("button", { name: /Reject Aji Ichi/ })).toBeDefined();
+  });
+
   it("renders the meal-kind left bar via kindBarClass", () => {
     const { container } = render(
       <ol>

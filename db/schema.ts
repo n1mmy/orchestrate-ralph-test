@@ -15,9 +15,11 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * The v1 Drizzle schema for Pick Me a Dinner — four tables. Domain terms come
- * from `.scratch/pick-me-a-dinner/CONTEXT.md`. (The shipped app also carries a
- * `rejections` table; that is a later phase, deliberately out of v1.)
+ * The Drizzle schema for Pick Me a Dinner. The v1 cut is four tables (Options,
+ * Tags, Option↔Tag, Log); `rejections` lands in Phase 5 (ticket 19) — a member
+ * of the Household turns down an Option for tonight, it leaves tonight's
+ * deterministic picker, and it returns on its own the next calendar day.
+ * Domain terms come from `.scratch/pick-me-a-dinner/CONTEXT.md`.
  */
 
 /** An Option is exactly one kind: a Home meal or a Restaurant. */
@@ -109,3 +111,37 @@ export const dinnerLog = pgTable(
     ),
   ],
 );
+
+/**
+ * `rejections` — a Household turn-down of an Option for one calendar day.
+ * A Rejection is **not** a Log entry and carries no Score weight; it is a
+ * presentation filter only (ADR-0003, ADR-0006). The Option FK is
+ * `ON DELETE CASCADE` because a Rejection of a hard-deleted Option is
+ * meaningless and the cascade keeps a Rejection from blocking the
+ * Catalog's hard-delete (allowed only for Options with no Log history —
+ * ADR-0001). `reason` is optional. `rejected_on` is the Household's
+ * calendar day in `APP_TZ`; the today's-rejections query keys on it, so a
+ * new calendar day empties the result on its own — no day-boundary code.
+ * The table is single-household-small, so the only index needed at this
+ * phase is on `rejected_on` to support that query. A `UNIQUE(option_id,
+ * rejected_on)` constraint is added later (ticket 28) when dated manual
+ * entry can re-visit the same date.
+ */
+export const rejections = pgTable(
+  "rejections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    optionId: uuid("option_id")
+      .notNull()
+      .references(() => options.id, { onDelete: "cascade" }),
+    reason: text("reason"),
+    rejectedOn: date("rejected_on").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("rejections_rejected_on_idx").on(table.rejectedOn)],
+);
+
+/** Row type for the `rejections` table — the shape `db.select()` returns. */
+export type Rejection = typeof rejections.$inferSelect;

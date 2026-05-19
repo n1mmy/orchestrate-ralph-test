@@ -22,3 +22,15 @@ export function ok<T>(value?: T): { ok: true } | { ok: true; value: T } {
 export function err(error: string): { ok: false; error: string } {
   return { ok: false, error };
 }
+
+/**
+ * Trim a form string and collapse blanks (empty or whitespace-only) to `null`.
+ * Used by server actions that store an optional text field — the DB stores
+ * `null` rather than `""` so "no value" is one canonical shape. Accepts
+ * `undefined` for actions that may receive the field unset entirely.
+ */
+export function trimToNull(value: string | undefined | null): string | null {
+  if (value === undefined || value === null) return null;
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}

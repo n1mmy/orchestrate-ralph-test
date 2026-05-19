@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, lte, sql } from "drizzle-orm";
 import { db } from "./index";
-import { dinnerLog, options, optionTags, tags } from "./schema";
+import { dinnerLog, options, optionTags, rejections, tags } from "./schema";
 import type { RankLogEntry, RankOption } from "@/lib/ranking";
 import type { TodayLogEntry } from "@/lib/tonights-dinner";
 import { epochDayFromSqlDate } from "@/lib/local-day";
@@ -291,4 +291,58 @@ export async function getLogOptionChoices(): Promise<LogOptionChoice[]> {
     .from(options)
     .orderBy(asc(options.name));
   return rows;
+}
+
+/**
+ * One of today's Rejections, joined to the Option it was made against.
+ * The Tonight page reads this set to suppress already-rejected Options from
+ * the deterministic picker (a presentation filter, not a Score change). The
+ * shape carries the Rejection's own `id` (the row handle a later "Bring
+ * back" action deletes by — ticket 20), the `optionId` (the filter key),
+ * the Option's `name` and `kind` (the disclosure renders both — ticket 20),
+ * and the optional `reason` text the Household typed. `active = true` is
+ * an inner-join filter on the query side: a Rejection of an Archived
+ * Option already would not appear on Tonight, so it has nothing to render.
+ */
+export type TodayRejection = {
+  id: string;
+  optionId: string;
+  optionName: string;
+  optionKind: "home" | "restaurant";
+  reason: string | null;
+};
+
+/**
+ * Today's Rejections — every `rejections` row whose `rejected_on` equals
+ * `todaySqlDate`, joined to its active Option, newest `created_at` first.
+ *
+ * Because the query keys on `rejected_on = today`, a new calendar day
+ * empties the result on its own and a rejected Option reappears on Tonight
+ * with no day-boundary code. The single index on `rejected_on`
+ * (`rejections_rejected_on_idx`) covers the lookup.
+ */
+export async function getTodayRejections(
+  todaySqlDate: string,
+): Promise<TodayRejection[]> {
+  const rows = await db
+    .select({
+      id: rejections.id,
+      optionId: rejections.optionId,
+      reason: rejections.reason,
+      optionName: options.name,
+      optionKind: options.kind,
+    })
+    .from(rejections)
+    .innerJoin(options, eq(options.id, rejections.optionId))
+    .where(
+      and(eq(rejections.rejectedOn, todaySqlDate), eq(options.active, true)),
+    )
+    .orderBy(desc(rejections.createdAt));
+  return rows.map((r) => ({
+    id: r.id,
+    optionId: r.optionId,
+    optionName: r.optionName,
+    optionKind: r.optionKind,
+    reason: r.reason,
+  }));
 }
