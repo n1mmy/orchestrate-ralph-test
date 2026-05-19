@@ -60,4 +60,6 @@ reused `RejectionRow` are the whole of the work.
 
 ## Blocked by
 
+- 19 — Reject and suppress (the `rejections` table its Rejection data
+  reads from)
 - 23 — Option detail page: merged History section + dinner-grouping module

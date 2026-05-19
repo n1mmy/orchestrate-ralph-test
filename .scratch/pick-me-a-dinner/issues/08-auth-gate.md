@@ -75,4 +75,5 @@ terminating ingress proxy.
 
 ## Blocked by
 
-- 01 — Walking skeleton
+- 02 — Catalog: Options CRUD (upgrades the thin `lib/authed-action.ts`
+  pass-through and uses `lib/action-result.ts`, both introduced there)

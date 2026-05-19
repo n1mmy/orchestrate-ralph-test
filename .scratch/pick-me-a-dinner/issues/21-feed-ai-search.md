@@ -44,4 +44,7 @@ Test per the source PRD: full Vitest unit coverage of `lib/rejections.ts` in a n
 
 ## Blocked by
 
-- 19 — Reject and suppress
+- 17 — AI search: mode polish, habit reasoning, and accessibility (extends
+  `buildSnapshot` and `buildSystemPrompt`)
+- 19 — Reject and suppress (needs the `rejections` table this snapshot
+  block reasons over)

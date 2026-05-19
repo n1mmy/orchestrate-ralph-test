@@ -33,4 +33,5 @@ The server actions need no new tests: `deleteLogEntry` is already covered by the
 
 ## Blocked by
 
-- 11 — Two-mode Tonight: the "Tonight's dinner" decided block
+- 12 — Action buttons on a picked Option (the `DecidedRow` and
+  `app/tonights-dinner-block.tsx` this ticket extends are built there)

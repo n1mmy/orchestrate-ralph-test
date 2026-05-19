@@ -71,4 +71,4 @@ stays `ok: true`.
 
 ## Blocked by
 
-- Ticket 15 — AI search: failure model and fallback
+- 15 — AI search: failure model and fallback

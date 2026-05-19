@@ -103,4 +103,5 @@ meals →" linking to `/catalog`.
 
 ## Blocked by
 
-- 03 — Tags on Options (per-Tag recency and Tag chips need Tags)
+- 02 — Catalog: Options CRUD (extends `db/queries.ts`; the `tags` /
+  `option_tags` schema is already in place from ticket 01)

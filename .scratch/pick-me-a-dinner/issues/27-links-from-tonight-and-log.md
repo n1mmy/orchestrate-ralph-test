@@ -47,4 +47,6 @@ Tonight, and the Log alike.
 
 ## Blocked by
 
-- 26 — Archived Options: detail page, Un-archive, and Catalog disclosure
+- 23 — Option detail page: merged History section + dinner-grouping module
+  (provides the extracted `app/log/log-entry-row.tsx`; the `/catalog/[id]`
+  route target comes transitively via ticket 22)

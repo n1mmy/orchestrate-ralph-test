@@ -36,4 +36,6 @@ The constraint produces a Postgres `23505` unique-violation on a colliding inser
 
 ## Blocked by
 
-22–27 (Phase 5 — Option detail page)
+- 19 — Reject and suppress (adds the `UNIQUE` constraint to the
+  `rejections` table created there; migration `0003` follows `0002`. The
+  Phase 5 detail-page work is unrelated to this schema change)
