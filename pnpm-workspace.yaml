@@ -1,0 +1,11 @@
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+# Dependencies whose install/build scripts pnpm is allowed to run.
+# esbuild powers the Vitest runner; sharp and unrs-resolver ship native
+# binaries Next.js / its linter use.
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - unrs-resolver
