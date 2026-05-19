@@ -1,6 +1,6 @@
 # 11 — Two-mode Tonight: the "Tonight's dinner" decided block
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -25,19 +25,19 @@ In decided mode the picker stays **open** below the "Tonight's dinner" block (th
 
 ## Acceptance criteria
 
-- [ ] With no Log entry dated today, Tonight renders picker mode — ranked list, kind segment, Tag filters — behaving as in v1
-- [ ] Picking an Option switches Tonight to decided mode, showing that Option under a "Tonight's dinner" `<h2>` sub-label; the `<h1>` heading stays "Tonight"
-- [ ] In decided mode the picker stays open below the "Tonight's dinner" block, inside an "Add another option" section with a divider, heading, and a hint that Picking adds a second dinner
-- [ ] An already-Picked Option is absent from the picker in decided mode
-- [ ] Picking a second Option appends it to Tonight's dinner; the picker stays open
-- [ ] When every Option is already Picked the picker area shows "Every Option is already on tonight's dinner." copy
-- [ ] A multi-Option Tonight's dinner lists Options in pick order, oldest `createdAt` first, and the order is stable when another is added
-- [ ] Returning to Tonight later the same day opens directly in decided mode; a new calendar day returns it to picker mode with no day-boundary logic
-- [ ] A decided-block Option's chips reflect its recency *before* tonight's Pick — `app/page.tsx` ranks the Catalog a second time over `entriesBeforeToday` to produce `decidedRows`
-- [ ] `getTonightData` returns `todayEntries` — today's `dinner_log` rows as `{ id, optionId, createdAt }`
-- [ ] `splitTonight` is a pure module (`lib/tonights-dinner.ts`, no DB/React) taking `(rankedRows, todayEntries, decidedRows)` and returning `{ tonightsDinner, picker }`; decided rows come from `decidedRows`
-- [ ] `splitTonight` is unit-tested (Vitest, `lib/tonights-dinner.test.ts`): no picks → empty dinner + full picker; one/several picks → picked Options excluded from the picker and ordered by `createdAt`; pick order stable as another is added; all Options picked → empty picker; a today entry for an Option absent from `decidedRows` is skipped without error; empty ranked set → both sides empty
-- [ ] The mode change is announced to assistive tech via a visually-hidden `aria-live` status region
+- [x] With no Log entry dated today, Tonight renders picker mode — ranked list, kind segment, Tag filters — behaving as in v1
+- [x] Picking an Option switches Tonight to decided mode, showing that Option under a "Tonight's dinner" `<h2>` sub-label; the `<h1>` heading stays "Tonight"
+- [x] In decided mode the picker stays open below the "Tonight's dinner" block, inside an "Add another option" section with a divider, heading, and a hint that Picking adds a second dinner
+- [x] An already-Picked Option is absent from the picker in decided mode
+- [x] Picking a second Option appends it to Tonight's dinner; the picker stays open
+- [x] When every Option is already Picked the picker area shows "Every Option is already on tonight's dinner." copy
+- [x] A multi-Option Tonight's dinner lists Options in pick order, oldest `createdAt` first, and the order is stable when another is added
+- [x] Returning to Tonight later the same day opens directly in decided mode; a new calendar day returns it to picker mode with no day-boundary logic
+- [x] A decided-block Option's chips reflect its recency *before* tonight's Pick — `app/page.tsx` ranks the Catalog a second time over `entriesBeforeToday` to produce `decidedRows`
+- [x] `getTonightData` returns `todayEntries` — today's `dinner_log` rows as `{ id, optionId, createdAt }`
+- [x] `splitTonight` is a pure module (`lib/tonights-dinner.ts`, no DB/React) taking `(rankedRows, todayEntries, decidedRows)` and returning `{ tonightsDinner, picker }`; decided rows come from `decidedRows`
+- [x] `splitTonight` is unit-tested (Vitest, `lib/tonights-dinner.test.ts`): no picks → empty dinner + full picker; one/several picks → picked Options excluded from the picker and ordered by `createdAt`; pick order stable as another is added; all Options picked → empty picker; a today entry for an Option absent from `decidedRows` is skipped without error; empty ranked set → both sides empty
+- [x] The mode change is announced to assistive tech via a visually-hidden `aria-live` status region
 
 ## Blocked by
 
