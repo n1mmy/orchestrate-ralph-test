@@ -1,6 +1,6 @@
 # 12 — Action buttons on a picked Option (Menu / Call / Recipe)
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -25,17 +25,17 @@ Add `decidedActions(option)` to the `lib/tonights-dinner` module from ticket 11 
 
 ## Acceptance criteria
 
-- [ ] `TonightsDinnerBlock` renders a `<ul>` of decided rows; each row links the Option name to `/catalog/[id]` and shows the shared `RowChips` (Recency chip + Tag chips with per-Tag recency); no Explanation chip
-- [ ] Each decided row carries the 3px meal-kind left bar and a light kind-tinted wash background (`kind-home-wash` / `kind-restaurant-wash`) distinguishing the decided area from the picker
-- [ ] A Picked Restaurant with both fields shows a "Menu" button and a "Call" button
-- [ ] A Picked Restaurant missing one field shows only the button whose field is set; with neither, no action buttons
-- [ ] A Picked Home meal with a `url` shows a "Recipe" button; without a `url`, no button
-- [ ] A Home meal never shows "Menu" or "Call", even with a stray `phone`
-- [ ] "Call" is a `tel:` link; "Menu" and "Recipe" open the Option's `url` in a new tab
-- [ ] A `url` with a non-`http(s)` scheme (`javascript:`, `data:`) yields no "Menu"/"Recipe" button; an unsafe `url` still leaves a "Call" button when `phone` is set
-- [ ] `getTonightData` returns each Option's `url` and `phone`
-- [ ] `decidedActions` is unit-tested (Vitest, `lib/tonights-dinner.test.ts`) across the kind/field combinations and the unsafe-scheme cases
-- [ ] The action buttons are keyboard-operable with visible focus and meet the 44×44px touch-target minimum
+- [x] `TonightsDinnerBlock` renders a `<ul>` of decided rows; each row links the Option name to `/catalog/[id]` and shows the shared `RowChips` (Recency chip + Tag chips with per-Tag recency); no Explanation chip
+- [x] Each decided row carries the 3px meal-kind left bar and a light kind-tinted wash background (`kind-home-wash` / `kind-restaurant-wash`) distinguishing the decided area from the picker
+- [x] A Picked Restaurant with both fields shows a "Menu" button and a "Call" button
+- [x] A Picked Restaurant missing one field shows only the button whose field is set; with neither, no action buttons
+- [x] A Picked Home meal with a `url` shows a "Recipe" button; without a `url`, no button
+- [x] A Home meal never shows "Menu" or "Call", even with a stray `phone`
+- [x] "Call" is a `tel:` link; "Menu" and "Recipe" open the Option's `url` in a new tab
+- [x] A `url` with a non-`http(s)` scheme (`javascript:`, `data:`) yields no "Menu"/"Recipe" button; an unsafe `url` still leaves a "Call" button when `phone` is set
+- [x] `getTonightData` returns each Option's `url` and `phone`
+- [x] `decidedActions` is unit-tested (Vitest, `lib/tonights-dinner.test.ts`) across the kind/field combinations and the unsafe-scheme cases
+- [x] The action buttons are keyboard-operable with visible focus and meet the 44×44px touch-target minimum
 
 ## Blocked by
 
