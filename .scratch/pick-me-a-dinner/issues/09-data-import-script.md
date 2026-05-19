@@ -1,6 +1,6 @@
 # 09 — Prior-version data import script
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -55,19 +55,19 @@ script reads its input either from a JSON dump path (`argv[2]`) or, when
 
 ## Acceptance criteria
 
-- [ ] `mapPriorData` maps `Meal` / `Restaurant` / `Dinner` into `options` /
+- [x] `mapPriorData` maps `Meal` / `Restaurant` / `Dinner` into `options` /
       `tags` / `option_tags` / `dinner_log` rows with fresh uuids and rewired
       `Dinner` FKs; an unresolvable FK throws before any DB write
-- [ ] `hidden` is inverted to `active`; `orderUrl` / `menuUrl` coalesce into
+- [x] `hidden` is inverted to `active`; `orderUrl` / `menuUrl` coalesce into
       one `url`; `phoneNumber` → `phone`
-- [ ] Tags are normalized via the shared `normalizeTag` helper and deduped
+- [x] Tags are normalized via the shared `normalizeTag` helper and deduped
       across all Options into `tags` + `option_tags`
-- [ ] `dinner_log.created_at` is set to the Dinner's date at local midnight in
+- [x] `dinner_log.created_at` is set to the Dinner's date at local midnight in
       `APP_TZ` (`localMidnightUtc`); absent Restaurant / Home fields import as
       `null`
-- [ ] `runImport` maps outside the transaction, then inserts all four tables in
+- [x] `runImport` maps outside the transaction, then inserts all four tables in
       one `db.transaction` that rolls back fully on any failure
-- [ ] `scripts/import-prior-data.db.test.ts` covers mapping correctness
+- [x] `scripts/import-prior-data.db.test.ts` covers mapping correctness
       (`hidden→active` inverted, `url` coalesced, tags normalized + deduped,
       the `created_at` local-midnight rule) and the all-or-nothing rollback
 
