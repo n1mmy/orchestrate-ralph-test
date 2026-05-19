@@ -36,7 +36,7 @@ describe("OptionRow", () => {
   it("swaps Archive for an inline 'Archive · Cancel' confirm step (no modal)", () => {
     render(
       <ul>
-        <OptionRow option={OPTION} />
+        <OptionRow option={OPTION} tagSuggestions={[]} />
       </ul>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Archive" }));
@@ -53,7 +53,7 @@ describe("OptionRow", () => {
   it("swaps Delete for an inline 'Delete · Cancel' confirm step (no modal)", () => {
     render(
       <ul>
-        <OptionRow option={OPTION} />
+        <OptionRow option={OPTION} tagSuggestions={[]} />
       </ul>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
@@ -67,7 +67,7 @@ describe("OptionRow", () => {
   it("Cancel returns the row to the default action cluster", () => {
     render(
       <ul>
-        <OptionRow option={OPTION} />
+        <OptionRow option={OPTION} tagSuggestions={[]} />
       </ul>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Archive" }));
@@ -80,7 +80,7 @@ describe("OptionRow", () => {
   it("Edit expands the inline OptionForm in place", () => {
     render(
       <ul>
-        <OptionRow option={OPTION} />
+        <OptionRow option={OPTION} tagSuggestions={[]} />
       </ul>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));

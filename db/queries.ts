@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { db } from "./index";
 import { options, optionTags, tags } from "./schema";
 
@@ -34,6 +34,23 @@ export type ActiveCatalog = {
   home: CatalogOption[];
   restaurants: CatalogOption[];
 };
+
+/**
+ * Every Tag name in the Catalog, alphabetical. Feeds the `TagInput`
+ * autocomplete on the Catalog screen — the suggestions list is the whole set
+ * of existing Tags filtered client-side as the Household types. Names are
+ * already canonical (`normalizeTag` runs on every write) so no normalization
+ * step is needed here. Note: Tags that no longer have any Option attached
+ * remain in the `tags` row store and so will appear here; per CONTEXT.md
+ * that is harmless — they simply stop appearing on any Option.
+ */
+export async function getAllTagNames(): Promise<string[]> {
+  const rows = await db
+    .select({ name: tags.name })
+    .from(tags)
+    .orderBy(asc(sql`lower(${tags.name})`));
+  return rows.map((r) => r.name);
+}
 
 /**
  * Load the active Catalog: `active = true` Options ordered by name, each

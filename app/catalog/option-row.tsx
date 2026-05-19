@@ -18,7 +18,13 @@ import type { CatalogOption } from "@/db/queries";
  */
 type Confirm = "none" | "archive" | "delete";
 
-export function OptionRow({ option }: { option: CatalogOption }) {
+export function OptionRow({
+  option,
+  tagSuggestions,
+}: {
+  option: CatalogOption;
+  tagSuggestions: string[];
+}) {
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState<Confirm>("none");
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +36,7 @@ export function OptionRow({ option }: { option: CatalogOption }) {
         <OptionForm
           kind={option.kind}
           initial={option}
+          tagSuggestions={tagSuggestions}
           onDone={() => setEditing(false)}
         />
       </li>
