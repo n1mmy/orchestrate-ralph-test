@@ -14,7 +14,7 @@
  *
  * The types and the four predicate/label helpers live here so they're
  * directly unit-testable from `lib/tonight-filter.test.ts`. The screen layer
- * (`app/tonight-filters.tsx`) wires them to React state and renders the chips.
+ * (`app/tonight-screen.tsx`) wires them to React state and renders the chips.
  */
 
 import type { TonightRow } from "./ranking";

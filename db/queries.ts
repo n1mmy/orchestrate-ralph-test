@@ -2,6 +2,7 @@ import { and, asc, desc, eq, lte, sql } from "drizzle-orm";
 import { db } from "./index";
 import { dinnerLog, options, optionTags, tags } from "./schema";
 import type { RankLogEntry, RankOption } from "@/lib/ranking";
+import type { TodayLogEntry } from "@/lib/tonights-dinner";
 import { epochDayFromSqlDate } from "@/lib/local-day";
 
 /**
@@ -103,7 +104,7 @@ export async function getActiveCatalog(): Promise<ActiveCatalog> {
 }
 
 /**
- * The two inputs the Tonight ranker needs:
+ * The three inputs the Tonight screen needs:
  *
  * - **`options`** — the active Catalog, each Option carrying the fields the
  *   ranker reads (`id`, `name`, `kind`, `tags`) plus the two pass-through
@@ -112,6 +113,14 @@ export async function getActiveCatalog(): Promise<ActiveCatalog> {
  *   Filtered to `eaten_on <= todaySql` so Planned dinners do not move the
  *   ranking, and joined inwardly to `options.active = true` so an Archived
  *   Option's history does not count (per CONTEXT.md's Recency definition).
+ * - **`todayEntries`** — the `dinner_log` rows whose `eaten_on` equals today,
+ *   each `{ id, optionId, createdAt }`. The Tonight screen reads this set to
+ *   decide its mode (empty → picker, non-empty → decided) and to render the
+ *   Tonight's-dinner panel in pick order; `id` is the row handle a "Remove"
+ *   action deletes by. Not yet filtered to active Options — an entry whose
+ *   Option was Archived after being Picked still appears here, and
+ *   `splitTonight` skips it silently if it is absent from the decided
+ *   ranking.
  *
  * `eaten_on` is converted to an integer epoch-day at the boundary so the
  * downstream ranker sees only integers — no date arithmetic happens in SQL,
@@ -120,6 +129,7 @@ export async function getActiveCatalog(): Promise<ActiveCatalog> {
 export type TonightData = {
   options: RankOption[];
   entries: RankLogEntry[];
+  todayEntries: TodayLogEntry[];
 };
 
 export async function getTonightData(todaySql: string): Promise<TonightData> {
@@ -172,9 +182,30 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
     eatenOn: epochDayFromSqlDate(r.eatenOn),
   }));
 
+  // Today's Log entries — the handle the decided block renders by. Includes
+  // entries whose Option is Archived (no `active = true` filter) so the
+  // Household still sees a settled Pick after Archiving an Option mid-evening;
+  // `splitTonight` silently skips an entry whose Option is absent from the
+  // active Catalog ranking.
+  const todayLogRows = await db
+    .select({
+      id: dinnerLog.id,
+      optionId: dinnerLog.optionId,
+      createdAt: dinnerLog.createdAt,
+    })
+    .from(dinnerLog)
+    .where(eq(dinnerLog.eatenOn, todaySql));
+
+  const todayEntries: TodayLogEntry[] = todayLogRows.map((r) => ({
+    id: r.id,
+    optionId: r.optionId,
+    createdAt: r.createdAt,
+  }));
+
   return {
     options: Array.from(byId.values()),
     entries,
+    todayEntries,
   };
 }
 

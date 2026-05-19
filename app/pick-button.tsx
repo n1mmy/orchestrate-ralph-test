@@ -5,19 +5,18 @@ import { pickTonight } from "./log/actions";
 
 /**
  * The one-tap "Pick" button rendered on every Tonight row. Calls
- * `pickTonight(optionId)` and on success briefly flips to "Logged ✓" in
- * `--success` (held ~1600ms) while the action's `revalidatePath("/")` re-sorts
- * the list under it. A failed write surfaces `result.error` inline as
- * `text-danger` next to the button — the button is never falsely flashed.
+ * `pickTonight(optionId)`; on success the page revalidates and Tonight
+ * transitions into **decided mode** — the row lands in the "Tonight's dinner"
+ * panel above the picker. That transition is the confirmation of a
+ * successful Pick (replacing the prior 1.6-second "Logged ✓" flash on this
+ * button). A failed write still surfaces `result.error` inline as
+ * `text-danger` next to the button so the Household sees the failure.
  *
  * The button itself is the charcoal `action` fill per DESIGN.md so it never
  * collides with the green end of the recency heatmap.
  */
-const SUCCESS_FLASH_MS = 1600;
-
 export function PickButton({ optionId }: { optionId: string }) {
   const [pending, startTransition] = useTransition();
-  const [justLogged, setJustLogged] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function onClick() {
@@ -26,10 +25,7 @@ export function PickButton({ optionId }: { optionId: string }) {
       const result = await pickTonight(optionId);
       if (!result.ok) {
         setError(result.error);
-        return;
       }
-      setJustLogged(true);
-      setTimeout(() => setJustLogged(false), SUCCESS_FLASH_MS);
     });
   }
 
@@ -38,15 +34,11 @@ export function PickButton({ optionId }: { optionId: string }) {
       <button
         type="button"
         onClick={onClick}
-        disabled={pending || justLogged}
+        disabled={pending}
         aria-label="Pick"
-        className={`rounded-control px-md py-xs text-meta disabled:opacity-80 ${
-          justLogged
-            ? "bg-success text-action-ink"
-            : "bg-action text-action-ink hover:bg-action-hover"
-        }`}
+        className="rounded-control bg-action px-md py-xs text-meta text-action-ink hover:bg-action-hover disabled:opacity-80"
       >
-        {justLogged ? "Logged ✓" : "Pick"}
+        Pick
       </button>
       {error ? (
         <p className="text-meta text-danger" role="alert">

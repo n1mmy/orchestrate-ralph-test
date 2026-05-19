@@ -9,8 +9,9 @@ import type { TonightRow as TonightRowData } from "@/lib/ranking";
  * the 3px meal-kind left bar, the Option name as plain text (not yet a link
  * to `/catalog/[id]` — that comes in a later phase), the Recency chip, the
  * per-Tag chips, and the real "Pick" button (`PickButton`), which calls
- * `pickTonight(optionId)` and briefly flips to "Logged ✓" while the
- * revalidation re-sorts the list under it (ticket 05).
+ * `pickTonight(optionId)`; on success Tonight switches into decided mode
+ * (the Option lands in the "Tonight's dinner" panel above the picker) —
+ * that transition is the confirmation of a successful Pick.
  *
  * The Tonight ledger is a **flat, uniform list** (DESIGN.md / PRD §18): every
  * row the same shape, separated by a 1px `line` rule. No lead-option

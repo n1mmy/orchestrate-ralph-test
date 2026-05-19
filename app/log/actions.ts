@@ -33,10 +33,11 @@ import { pgErrorMessage } from "@/lib/pg-error";
 /**
  * Pick — the one-tap "this is tonight's dinner" write. Logs a `dinner_log`
  * row for `today()`; a double-tap is a no-op via `.onConflictDoNothing()`. On
- * success the response is `{ ok: true }` and the UI flips to "Logged ✓"
- * briefly while the revalidation re-sorts Tonight under it. A write failure
- * is `{ ok: false, error: "Couldn't log that — try again" }` — never a false
- * "Logged ✓".
+ * success the response is `{ ok: true }` and the revalidation re-renders
+ * Tonight in decided mode — the Picked Option lands in the "Tonight's
+ * dinner" panel above the picker (ticket 11). A write failure is
+ * `{ ok: false, error: "Couldn't log that — try again" }`, surfaced inline
+ * next to the button so the Pick is never silently lost.
  */
 export const pickTonight = authedAction(
   async (optionId: string): Promise<ActionResult> => {
@@ -50,7 +51,7 @@ export const pickTonight = authedAction(
     } catch {
       // Any unexpected failure — DB down, etc. — is reported inline rather
       // than thrown into the error boundary, because the Tonight row's UI
-      // needs to keep the button alive (and avoid a false "Logged ✓").
+      // needs to keep the button alive (and avoid a false success state).
       return err("Couldn't log that — try again");
     }
     revalidatePath("/");
