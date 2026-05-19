@@ -1,4 +1,4 @@
-import { and, asc, eq, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, lte, sql } from "drizzle-orm";
 import { db } from "./index";
 import { dinnerLog, options, optionTags, tags } from "./schema";
 import type { RankLogEntry, RankOption } from "@/lib/ranking";
@@ -176,4 +176,88 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
     options: Array.from(byId.values()),
     entries,
   };
+}
+
+/**
+ * A single Log entry as the Log screen renders it — every column from
+ * `dinner_log` plus a small slice of the Option it was logged against. The
+ * Option name is what the row displays; the kind and `active` flag let the
+ * row tint by meal-kind and let the edit form's `<select>` keep an Archived
+ * Option selectable (per CONTEXT.md, an entry already logged against an
+ * Archived Option stays editable).
+ */
+export type LogEntry = {
+  id: string;
+  optionId: string;
+  /** SQL `date` string (`YYYY-MM-DD`) in the Household's calendar. */
+  eatenOn: string;
+  note: string | null;
+  option: {
+    id: string;
+    name: string;
+    kind: "home" | "restaurant";
+    active: boolean;
+  };
+};
+
+/**
+ * Every Log entry, joined to its Option, newest `eaten_on` first. The
+ * `createdAt` tiebreaker keeps the order stable when two rows share a date
+ * (deterministic ordering matters for grouped-by-date rendering and tests).
+ *
+ * Both Active and Archived Options are included — an Archived Option's past
+ * Log history is part of the Household's record and must not disappear when
+ * the Option is Archived.
+ */
+export async function getLog(): Promise<LogEntry[]> {
+  const rows = await db
+    .select({
+      id: dinnerLog.id,
+      optionId: dinnerLog.optionId,
+      eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
+      createdAt: dinnerLog.createdAt,
+      option: {
+        id: options.id,
+        name: options.name,
+        kind: options.kind,
+        active: options.active,
+      },
+    })
+    .from(dinnerLog)
+    .innerJoin(options, eq(options.id, dinnerLog.optionId))
+    .orderBy(desc(dinnerLog.eatenOn), desc(dinnerLog.createdAt));
+  return rows.map((r) => ({
+    id: r.id,
+    optionId: r.optionId,
+    eatenOn: r.eatenOn,
+    note: r.note,
+    option: r.option,
+  }));
+}
+
+/**
+ * The Option picker the Log edit form renders — every Option, Active and
+ * Archived, alphabetical. Both kinds are included so an entry already logged
+ * against an Archived Option stays editable (its current Option must remain a
+ * selectable value).
+ */
+export type LogOptionChoice = {
+  id: string;
+  name: string;
+  kind: "home" | "restaurant";
+  active: boolean;
+};
+
+export async function getLogOptionChoices(): Promise<LogOptionChoice[]> {
+  const rows = await db
+    .select({
+      id: options.id,
+      name: options.name,
+      kind: options.kind,
+      active: options.active,
+    })
+    .from(options)
+    .orderBy(asc(options.name));
+  return rows;
 }

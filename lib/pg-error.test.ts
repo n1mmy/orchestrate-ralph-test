@@ -8,6 +8,27 @@ describe("pgErrorMessage", () => {
     );
   });
 
+  it("translates 23505 on dinner_log_option_eaten_on_unique into the inline date-collision message", () => {
+    expect(
+      pgErrorMessage({
+        code: "23505",
+        constraint_name: "dinner_log_option_eaten_on_unique",
+      }),
+    ).toBe("Already logged for that date");
+    expect(
+      pgErrorMessage({
+        code: "23505",
+        constraint: "dinner_log_option_eaten_on_unique",
+      }),
+    ).toBe("Already logged for that date");
+  });
+
+  it("returns null for a 23505 on an unknown constraint — the caller rethrows", () => {
+    expect(
+      pgErrorMessage({ code: "23505", constraint_name: "other_unique" }),
+    ).toBeNull();
+  });
+
   it("returns null for an unknown error code — the caller rethrows", () => {
     expect(pgErrorMessage({ code: "42P01" })).toBeNull();
   });

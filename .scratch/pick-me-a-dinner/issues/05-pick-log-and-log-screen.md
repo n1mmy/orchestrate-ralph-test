@@ -1,6 +1,6 @@
 # 05 — Pick = log and the Log screen
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -65,23 +65,23 @@ pattern ("Delete · Cancel" in place, no modal). Cover the §17 states for Log (
 
 ## Acceptance criteria
 
-- [ ] "Pick" calls `pickTonight`, logs a `dinner_log` row for `today()` in one
+- [x] "Pick" calls `pickTonight`, logs a `dinner_log` row for `today()` in one
       tap, briefly marks "Logged ✓", and re-sorts the list
-- [ ] A double-tap on "Pick" is a no-op (`.onConflictDoNothing()` on
+- [x] A double-tap on "Pick" is a no-op (`.onConflictDoNothing()` on
       `(option_id, eaten_on)`)
-- [ ] The Log screen's "+ Add a dinner" form (`logForDate`) allows a past date
+- [x] The Log screen's "+ Add a dinner" form (`logForDate`) allows a past date
       (backfill) and a future date (Planned dinner); future entries are
       excluded from the Tonight ranking
-- [ ] The Log screen shows a capped Upcoming strip above
+- [x] The Log screen shows a capped Upcoming strip above
       reverse-chronological history grouped by date; multi-entry dates render
       as one Dinner under one header
-- [ ] Any Log entry edits inline (Option, date, note) via `updateLogEntry` or
+- [x] Any Log entry edits inline (Option, date, note) via `updateLogEntry` or
       deletes via `deleteLogEntry`; a `logForDate`/`updateLogEntry` edit
       violating `unique(option_id, eaten_on)` (`23505`) shows the inline
       "Already logged for that date" error with input preserved
-- [ ] Delete uses the §17 inline-confirm pattern; Log §17 states (loading,
+- [x] Delete uses the §17 inline-confirm pattern; Log §17 states (loading,
       empty, error, quiet "Saved") are covered
-- [ ] `app/log/actions.db.test.ts` covers: `pickTonight` inserts for today;
+- [x] `app/log/actions.db.test.ts` covers: `pickTonight` inserts for today;
       double-tap no-op; `logForDate` past + future; `updateLogEntry`
       Option/date/note; `deleteLogEntry`; the `unique`-conflict rejection
 
