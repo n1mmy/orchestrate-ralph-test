@@ -1,6 +1,8 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, lte, sql } from "drizzle-orm";
 import { db } from "./index";
-import { options, optionTags, tags } from "./schema";
+import { dinnerLog, options, optionTags, tags } from "./schema";
+import type { RankLogEntry, RankOption } from "@/lib/ranking";
+import { epochDayFromSqlDate } from "@/lib/local-day";
 
 /**
  * A single Option as the Catalog screen consumes it — every column from the
@@ -97,5 +99,81 @@ export async function getActiveCatalog(): Promise<ActiveCatalog> {
   return {
     home: all.filter((o) => o.kind === "home"),
     restaurants: all.filter((o) => o.kind === "restaurant"),
+  };
+}
+
+/**
+ * The two inputs the Tonight ranker needs:
+ *
+ * - **`options`** — the active Catalog, each Option carrying the fields the
+ *   ranker reads (`id`, `name`, `kind`, `tags`) plus the two pass-through
+ *   restaurant fields (`url`, `phone`) used by later phases.
+ * - **`entries`** — non-future Log rows, joined to active Options only.
+ *   Filtered to `eaten_on <= todaySql` so Planned dinners do not move the
+ *   ranking, and joined inwardly to `options.active = true` so an Archived
+ *   Option's history does not count (per CONTEXT.md's Recency definition).
+ *
+ * `eaten_on` is converted to an integer epoch-day at the boundary so the
+ * downstream ranker sees only integers — no date arithmetic happens in SQL,
+ * and DST cannot perturb the day delta. See ADR-0003 and `lib/local-day.ts`.
+ */
+export type TonightData = {
+  options: RankOption[];
+  entries: RankLogEntry[];
+};
+
+export async function getTonightData(todaySql: string): Promise<TonightData> {
+  // Active Options with their Tags — left-joined so tagless Options still
+  // appear. Same fan-out / re-grouping shape as `getActiveCatalog`.
+  const optionRows = await db
+    .select({
+      id: options.id,
+      name: options.name,
+      kind: options.kind,
+      url: options.url,
+      phone: options.phone,
+      tagName: tags.name,
+    })
+    .from(options)
+    .leftJoin(optionTags, eq(optionTags.optionId, options.id))
+    .leftJoin(tags, eq(tags.id, optionTags.tagId))
+    .where(eq(options.active, true))
+    .orderBy(asc(options.name));
+
+  const byId = new Map<string, RankOption>();
+  for (const row of optionRows) {
+    let entry = byId.get(row.id);
+    if (!entry) {
+      entry = {
+        id: row.id,
+        name: row.name,
+        kind: row.kind,
+        url: row.url,
+        phone: row.phone,
+        tags: [],
+      };
+      byId.set(row.id, entry);
+    }
+    if (row.tagName) entry.tags.push(row.tagName);
+  }
+
+  // Log entries: non-future, joined to active Options only.
+  const logRows = await db
+    .select({
+      optionId: dinnerLog.optionId,
+      eatenOn: dinnerLog.eatenOn,
+    })
+    .from(dinnerLog)
+    .innerJoin(options, eq(options.id, dinnerLog.optionId))
+    .where(and(eq(options.active, true), lte(dinnerLog.eatenOn, todaySql)));
+
+  const entries: RankLogEntry[] = logRows.map((r) => ({
+    optionId: r.optionId,
+    eatenOn: epochDayFromSqlDate(r.eatenOn),
+  }));
+
+  return {
+    options: Array.from(byId.values()),
+    entries,
   };
 }
