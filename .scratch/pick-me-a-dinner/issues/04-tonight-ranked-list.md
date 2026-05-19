@@ -1,6 +1,6 @@
 # 04 — Tonight: ranked list
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -78,21 +78,21 @@ meals →" linking to `/catalog`.
 
 ## Acceptance criteria
 
-- [ ] Tonight renders the active Catalog as a flat uniform `<ol>` ranked
+- [x] Tonight renders the active Catalog as a flat uniform `<ol>` ranked
       descending by Score, each row with the rank number, the 3px meal-kind
       left bar (`kindBarClass`), the Option name as plain text, the Recency
       chip, and the Tag chips
-- [ ] `lib/ranking.ts` and `lib/local-day.ts` are pure modules with no DB or
+- [x] `lib/ranking.ts` and `lib/local-day.ts` are pure modules with no DB or
       React dependency; `TonightRow` carries `recencyDays` + `neverEaten` +
       `tags: TagRecency[]` and **no explanation string**
-- [ ] The Recency chip shows `Nd` / `60d+` / `new` on a `recencyChipBgStrong`
+- [x] The Recency chip shows `Nd` / `60d+` / `new` on a `recencyChipBgStrong`
       heatmap fill; Tag chips show `tag Nd` on a fainter `recencyChipBg` fill,
       each tinted by its own recency via `lib/recency-color.ts`
-- [ ] Cold start (zero non-future Log entries) falls back to alphabetical
+- [x] Cold start (zero non-future Log entries) falls back to alphabetical
       order; an empty Catalog shows the "Add your first meals →" prompt
-- [ ] Overdue Tag chips render greener (the overdue heatmap end) at `days >=
+- [x] Overdue Tag chips render greener (the overdue heatmap end) at `days >=
       OVERDUE_THRESHOLD` (14)
-- [ ] `lib/ranking.test.ts` covers `daysSince` (null→CAP, normal, capped,
+- [x] `lib/ranking.test.ts` covers `daysSince` (null→CAP, normal, capped,
       future guard), `lastEaten`/`lastTagUse` (most-recent non-future, future
       excluded, null on no history), `optionScore` (tagged, tagless, cold
       start), the `overdue` threshold, and the `rankTonight` sort with its
