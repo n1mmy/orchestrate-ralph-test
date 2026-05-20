@@ -115,12 +115,16 @@ export type TonightOption = {
   tags: string[];
   url: string | null;
   phone: string | null;
+  /** Free-text notes — `null` when absent. Used by AI search snapshots. */
+  notes: string | null;
 };
 
 export type TonightLogEntry = {
   optionId: string;
   /** SQL `date` string — the page converts to epoch-day before ranking. */
   eatenOn: string;
+  /** Free-text note — `null` when absent. Used by AI search snapshots. */
+  note: string | null;
 };
 
 /**
@@ -165,6 +169,7 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
       kind: options.kind,
       url: options.url,
       phone: options.phone,
+      notes: options.notes,
     })
     .from(options)
     .where(eq(options.active, true))
@@ -191,6 +196,7 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
     .select({
       optionId: dinnerLog.optionId,
       eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
     })
     .from(dinnerLog)
     .innerJoin(options, eq(dinnerLog.optionId, options.id))
@@ -218,6 +224,7 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
     entries: logRows.map((row) => ({
       optionId: row.optionId,
       eatenOn: row.eatenOn,
+      note: row.note,
     })),
     todayEntries: todayRows.map((row) => ({
       id: row.id,
@@ -270,6 +277,92 @@ export async function getLog(): Promise<LogEntry[]> {
       active: row.optionActive,
     },
   }));
+}
+
+/**
+ * Read model for AI search — the active Catalog with notes, the full Log
+ * (past **and** future-dated Planned dinners), and the Rejection history.
+ *
+ * Distinct from `getTonightData` because AI search needs every Log row,
+ * including planned futures the deterministic ranking deliberately drops.
+ * Today the `rejections` set is empty by construction: the `rejections`
+ * table lands in a later phase, so this query returns `[]` for it without
+ * a real DB read.
+ */
+export type AiSearchCatalogOption = {
+  id: string;
+  name: string;
+  kind: "home" | "restaurant";
+  tags: string[];
+  notes: string | null;
+};
+
+export type AiSearchLogEntry = {
+  optionId: string;
+  /** SQL date string `YYYY-MM-DD`. */
+  eatenOn: string;
+  note: string | null;
+};
+
+export type AiSearchRejection = {
+  optionId: string;
+  /** SQL date string `YYYY-MM-DD`. */
+  rejectedOn: string;
+  reason: string | null;
+};
+
+export type AiSearchSnapshotInput = {
+  catalog: AiSearchCatalogOption[];
+  log: AiSearchLogEntry[];
+  rejections: AiSearchRejection[];
+};
+
+export async function getAiSearchSnapshotInput(): Promise<AiSearchSnapshotInput> {
+  const rows = await db
+    .select({
+      id: options.id,
+      name: options.name,
+      kind: options.kind,
+      notes: options.notes,
+    })
+    .from(options)
+    .where(eq(options.active, true))
+    .orderBy(asc(options.name));
+
+  const tagRows = await db
+    .select({ optionId: optionTags.optionId, name: tags.name })
+    .from(optionTags)
+    .innerJoin(tags, eq(optionTags.tagId, tags.id));
+
+  const tagsByOption = new Map<string, string[]>();
+  for (const tagRow of tagRows) {
+    const list = tagsByOption.get(tagRow.optionId) ?? [];
+    list.push(tagRow.name);
+    tagsByOption.set(tagRow.optionId, list);
+  }
+
+  // Full Log — past **and** future-dated Planned dinners — newest first.
+  // Joined to active Options only (archived history doesn't feed search).
+  const logRows = await db
+    .select({
+      optionId: dinnerLog.optionId,
+      eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
+    })
+    .from(dinnerLog)
+    .innerJoin(options, eq(dinnerLog.optionId, options.id))
+    .where(eq(options.active, true))
+    .orderBy(desc(dinnerLog.eatenOn));
+
+  return {
+    catalog: rows.map((row) => ({
+      ...row,
+      tags: tagsByOption.get(row.id) ?? [],
+    })),
+    log: logRows,
+    // Rejections land in a later phase — empty for now.
+    rejections: [],
+  };
 }
 
 /**

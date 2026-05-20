@@ -4,6 +4,7 @@
 export const dynamic = "force-dynamic";
 
 import { getTonightData } from "@/db/queries";
+import { aiSearchEnabled } from "@/lib/ai-search";
 import { epochDayFromSqlDate, today } from "@/lib/local-day";
 import { rankTonight, type RankLogEntry } from "@/lib/ranking";
 import { splitTonight, type TodayLogEntry } from "@/lib/tonights-dinner";
@@ -55,6 +56,7 @@ export default async function HomePage() {
     <TonightScreen
       pickerRows={picker}
       tonightsDinner={tonightsDinner}
+      searchEnabled={aiSearchEnabled()}
     />
   );
 }
