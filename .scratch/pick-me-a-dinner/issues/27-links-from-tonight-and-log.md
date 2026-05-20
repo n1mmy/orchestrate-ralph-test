@@ -50,3 +50,7 @@ Tonight, and the Log alike.
 - 23 — Option detail page: merged History section + dinner-grouping module
   (provides the extracted `app/log/log-entry-row.tsx`; the `/catalog/[id]`
   route target comes transitively via ticket 22)
+
+## Comments
+
+- attempt 1: worker reported `needs-info` verbally — "AC3 infeasible until 24 or 32 ships `app/log/rejection-row.tsx`" — but did not commit the status transition, so its branch carries no commit and the issue is still at `ready-for-agent`. The underlying blocker has since been resolved: issue 24 merged this same round and introduced `app/log/rejection-row.tsx`. Re-run branches off the updated tip — `app/log/rejection-row.tsx` now exists, and `app/log/log-entry-row.tsx` from ticket 23 is also already present — so implement the three link wrappings as specified.

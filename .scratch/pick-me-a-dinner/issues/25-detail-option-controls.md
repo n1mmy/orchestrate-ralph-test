@@ -81,3 +81,4 @@ identically wherever it is invoked (ADR-0007).
 ## Comments
 
 - attempt 1: worker succeeded but merge into integration aborted on conflict in `app/catalog/[id]/page.tsx` (issue 23's merged History rework changed the same `page.tsx`). Re-run branches off the updated tip — the History section is now in place — so layer the new "Actions" heading and `<OptionControls>` rendering on top of the existing structure rather than rewriting the file from scratch.
+- attempt 2: worker succeeded but merge into integration again aborted on conflict in `app/catalog/[id]/page.tsx` — this round merged issue 24 first, which also reworked the same `page.tsx` to render Rejections inside the History section. Re-run branches off the updated tip (24 now merged): the History block now imports `RejectionRow` and renders Rejections inside its date groups; layer the new "Actions" heading and `<OptionControls>` rendering on top of *that* structure.
