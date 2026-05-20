@@ -3,6 +3,10 @@
 Status: ready-for-agent
 Type: AFK
 
+## Comments
+
+- 2026-05-20 (attempt 1): merge conflict against the integration tip — your worker branch touched `app/catalog/{catalog-screen,option-form,option-row,option-section,page}.tsx`, but ticket 04's TagInput integration landed in the same files first. Next attempt: branch off the new integration tip (which already has TagInput wired into OptionForm) and add the Places search box alongside it.
+
 ## Parent
 
 [PRD: Pick Me a Dinner — whole-app build](../PRD.md)
