@@ -17,6 +17,20 @@ import { pgErrorMessage } from "@/lib/pg-error";
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
+ * Revalidate every Catalog-facing view a write touches: the Catalog list at
+ * `/catalog`, and every Option detail page at `/catalog/[id]`. The detail
+ * page's "Actions" toolbar (ticket 25) reuses these same write actions, so a
+ * save / archive / delete invoked from the detail page must refresh the page
+ * the Household is still looking at — not only the Catalog list it was also
+ * called from before. The dynamic-route invalidation uses Next's `"page"`
+ * second argument so every `/catalog/[id]` segment invalidates at once.
+ */
+function revalidateCatalog(): void {
+  revalidatePath("/catalog");
+  revalidatePath("/catalog/[id]", "page");
+}
+
+/**
  * Values a create/update form submits for an Option. The Restaurant-only
  * fields are accepted on every call — empty strings collapse to `null` so a
  * Home meal form leaves them unset, and a Restaurant form fills only the ones
@@ -211,7 +225,7 @@ export const updateOption = authedAction(
         .where(eq(options.id, id));
       await syncOptionTags(tx, id, values.tags ?? []);
     });
-    revalidatePath("/catalog");
+    revalidateCatalog();
     return ok();
   },
 );
@@ -227,7 +241,7 @@ export const archiveOption = authedAction(
       .update(options)
       .set({ active: false })
       .where(eq(options.id, id));
-    revalidatePath("/catalog");
+    revalidateCatalog();
     return ok();
   },
 );
@@ -247,7 +261,7 @@ export const deleteOption = authedAction(
       if (message !== null) return err(message);
       throw error;
     }
-    revalidatePath("/catalog");
+    revalidateCatalog();
     return ok();
   },
 );
