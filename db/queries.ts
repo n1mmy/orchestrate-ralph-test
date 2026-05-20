@@ -104,15 +104,24 @@ export async function getActiveCatalog(): Promise<ActiveCatalog> {
 }
 
 /**
- * The three inputs the Tonight screen needs:
+ * The four inputs the Tonight screen needs:
  *
  * - **`options`** — the active Catalog, each Option carrying the fields the
  *   ranker reads (`id`, `name`, `kind`, `tags`) plus the two pass-through
- *   restaurant fields (`url`, `phone`) used by later phases.
+ *   restaurant fields (`url`, `phone`) used by later phases, and `notes` for
+ *   the AI-search snapshot builder (ticket 14).
  * - **`entries`** — non-future Log rows, joined to active Options only.
  *   Filtered to `eaten_on <= todaySql` so Planned dinners do not move the
  *   ranking, and joined inwardly to `options.active = true` so an Archived
  *   Option's history does not count (per CONTEXT.md's Recency definition).
+ *   The ranking math has not changed — `rankTonight` still receives exactly
+ *   this set.
+ * - **`fullLog`** — every `dinner_log` row joined to its active Option, past
+ *   and future-dated alike, each carrying `optionId`, `eatenOn` (SQL date
+ *   string), and the optional `note`. Fed straight into the AI-search
+ *   snapshot, which wants the full Log including Planned dinners and the
+ *   per-entry note — distinct from the integer-epoch `entries` the ranker
+ *   reads.
  * - **`todayEntries`** — the `dinner_log` rows whose `eaten_on` equals today,
  *   each `{ id, optionId, createdAt }`. The Tonight screen reads this set to
  *   decide its mode (empty → picker, non-empty → decided) and to render the
@@ -126,15 +135,27 @@ export async function getActiveCatalog(): Promise<ActiveCatalog> {
  * downstream ranker sees only integers — no date arithmetic happens in SQL,
  * and DST cannot perturb the day delta. See ADR-0003 and `lib/local-day.ts`.
  */
+export type TonightOption = RankOption & { notes: string | null };
+
+export type TonightLogEntry = {
+  optionId: string;
+  /** SQL `date` string (`YYYY-MM-DD`) in the Household's calendar. */
+  eatenOn: string;
+  note: string | null;
+};
+
 export type TonightData = {
-  options: RankOption[];
+  options: TonightOption[];
   entries: RankLogEntry[];
+  fullLog: TonightLogEntry[];
   todayEntries: TodayLogEntry[];
 };
 
 export async function getTonightData(todaySql: string): Promise<TonightData> {
   // Active Options with their Tags — left-joined so tagless Options still
-  // appear. Same fan-out / re-grouping shape as `getActiveCatalog`.
+  // appear. Same fan-out / re-grouping shape as `getActiveCatalog`. `notes` is
+  // carried for the AI-search snapshot builder (ticket 14); the ranker
+  // ignores it.
   const optionRows = await db
     .select({
       id: options.id,
@@ -142,6 +163,7 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
       kind: options.kind,
       url: options.url,
       phone: options.phone,
+      notes: options.notes,
       tagName: tags.name,
     })
     .from(options)
@@ -150,7 +172,7 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
     .where(eq(options.active, true))
     .orderBy(asc(options.name));
 
-  const byId = new Map<string, RankOption>();
+  const byId = new Map<string, TonightOption>();
   for (const row of optionRows) {
     let entry = byId.get(row.id);
     if (!entry) {
@@ -160,6 +182,7 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
         kind: row.kind,
         url: row.url,
         phone: row.phone,
+        notes: row.notes,
         tags: [],
       };
       byId.set(row.id, entry);
@@ -167,7 +190,8 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
     if (row.tagName) entry.tags.push(row.tagName);
   }
 
-  // Log entries: non-future, joined to active Options only.
+  // Log entries: non-future, joined to active Options only. Feeds the ranker
+  // unchanged.
   const logRows = await db
     .select({
       optionId: dinnerLog.optionId,
@@ -180,6 +204,27 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
   const entries: RankLogEntry[] = logRows.map((r) => ({
     optionId: r.optionId,
     eatenOn: epochDayFromSqlDate(r.eatenOn),
+  }));
+
+  // The full Log — past and future-dated alike — joined to active Options
+  // only. Fed straight into the AI-search snapshot (which wants Planned
+  // dinners and the per-entry note); kept as the raw SQL date strings, not
+  // the integer epoch-day form, because the snapshot serialises dates as
+  // strings and the model reads weekdays off them.
+  const fullLogRows = await db
+    .select({
+      optionId: dinnerLog.optionId,
+      eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
+    })
+    .from(dinnerLog)
+    .innerJoin(options, eq(options.id, dinnerLog.optionId))
+    .where(eq(options.active, true));
+
+  const fullLog: TonightLogEntry[] = fullLogRows.map((r) => ({
+    optionId: r.optionId,
+    eatenOn: r.eatenOn,
+    note: r.note,
   }));
 
   // Today's Log entries — the handle the decided block renders by. Includes
@@ -205,8 +250,39 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
   return {
     options: Array.from(byId.values()),
     entries,
+    fullLog,
     todayEntries,
   };
+}
+
+/**
+ * Every Rejection joined to its active Option, with the SQL `date` string
+ * preserved (no integer-epoch conversion — the AI-search snapshot serialises
+ * dates as strings, and the ranker does not read this set). The result is
+ * newest first so the snapshot's `rejections` ordering matches.
+ */
+export type RejectionForSnapshot = {
+  optionId: string;
+  rejectedOn: string;
+  reason: string | null;
+};
+
+export async function getAllRejections(): Promise<RejectionForSnapshot[]> {
+  const rows = await db
+    .select({
+      optionId: rejections.optionId,
+      rejectedOn: rejections.rejectedOn,
+      reason: rejections.reason,
+    })
+    .from(rejections)
+    .innerJoin(options, eq(options.id, rejections.optionId))
+    .where(eq(options.active, true))
+    .orderBy(desc(rejections.rejectedOn));
+  return rows.map((r) => ({
+    optionId: r.optionId,
+    rejectedOn: r.rejectedOn,
+    reason: r.reason,
+  }));
 }
 
 /**

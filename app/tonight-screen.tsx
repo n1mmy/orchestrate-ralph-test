@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { TonightRow } from "./tonight-row";
 import { TonightsDinnerBlock } from "./tonights-dinner-block";
 import { deleteRejection } from "./rejection-actions";
+import { aiSearchAction } from "./tonight-actions";
 import type { TonightRow as TonightRowData } from "@/lib/ranking";
 import type { TonightsDinnerEntry } from "@/lib/tonights-dinner";
 import type { TodayRejection } from "@/db/queries";
@@ -153,27 +154,29 @@ export function TonightScreen({
           </>
         ) : null}
 
-        {pickerRows.length === 0 ? (
-          allRejected ? (
-            <p className="mt-sm text-body text-muted">
-              Every Option has been rejected for tonight. They&apos;ll be back
-              tomorrow.
-            </p>
-          ) : decided ? (
-            <p className="mt-sm text-body text-muted">
-              Every Option is already on tonight&apos;s dinner.
-            </p>
-          ) : null
-        ) : (
-          <PickerFilters
-            tags={tags}
-            tagFilters={tagFilters}
-            hint={hint}
-            onTap={tap}
-            visible={visiblePicker}
-            onRejected={announceRejected}
-          />
-        )}
+        <AiSearchBox pickerRows={pickerRows} onRejected={announceRejected}>
+          {pickerRows.length === 0 ? (
+            allRejected ? (
+              <p className="mt-sm text-body text-muted">
+                Every Option has been rejected for tonight. They&apos;ll be back
+                tomorrow.
+              </p>
+            ) : decided ? (
+              <p className="mt-sm text-body text-muted">
+                Every Option is already on tonight&apos;s dinner.
+              </p>
+            ) : null
+          ) : (
+            <PickerFilters
+              tags={tags}
+              tagFilters={tagFilters}
+              hint={hint}
+              onTap={tap}
+              visible={visiblePicker}
+              onRejected={announceRejected}
+            />
+          )}
+        </AiSearchBox>
       </section>
       <p className="sr-only" role="status" aria-live="polite">
         {removedAnnouncement}
@@ -182,6 +185,136 @@ export function TonightScreen({
       {rejectedTonight.length > 0 ? (
         <RejectedTonightDisclosure rejections={rejectedTonight} />
       ) : null}
+    </>
+  );
+}
+
+/**
+ * The AI-search box (ticket 14) — the search input above the picker, plus the
+ * AI result list that swaps in for the deterministic picker once a query is
+ * submitted. The children prop is the deterministic picker the parent renders;
+ * AI search swaps it out in place when results land. Submitting an empty query
+ * is allowed. A Clear control restores the deterministic picker; a page reload
+ * does the same — the AI result is never persisted.
+ *
+ * Error handling is intentionally minimal here (per the ticket — tickets 15
+ * and 16 add the malformed/empty/dedup polish): a basic inline message reads
+ * "AI search isn't available right now" when the action returns
+ * `AI_SEARCH_UNAVAILABLE`.
+ */
+function AiSearchBox({
+  pickerRows,
+  onRejected,
+  children,
+}: {
+  pickerRows: TonightRowData[];
+  onRejected: (optionName: string) => void;
+  children: React.ReactNode;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<{ optionId: string; reason: string }[] | null>(
+    null,
+  );
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function submit() {
+    setError(null);
+    startTransition(async () => {
+      const result = await aiSearchAction(query);
+      if (!result.ok) {
+        setError("AI search isn't available right now");
+        return;
+      }
+      setResults(result.results);
+    });
+  }
+
+  function clear() {
+    setResults(null);
+    setError(null);
+    setQuery("");
+  }
+
+  // Map AI result UUIDs back to the corresponding picker rows so the AI
+  // result list can render the existing TonightRow component with the same
+  // chips and Pick controls. A result whose UUID is not in `pickerRows`
+  // (an Archived Option, or an Option that has dropped out since the
+  // snapshot was built) is silently skipped — `pick = log` only makes
+  // sense against an active Catalog row.
+  const rowsByOptionId = useMemo(() => {
+    const m = new Map<string, TonightRowData>();
+    for (const row of pickerRows) m.set(row.option.id, row);
+    return m;
+  }, [pickerRows]);
+
+  const aiRows = useMemo(() => {
+    if (results === null) return null;
+    return results
+      .map((r) => {
+        const row = rowsByOptionId.get(r.optionId);
+        return row ? { row, reason: r.reason } : null;
+      })
+      .filter((x): x is { row: TonightRowData; reason: string } => x !== null);
+  }, [results, rowsByOptionId]);
+
+  return (
+    <>
+      <form
+        role="search"
+        aria-label="AI search"
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+        className="mt-sm flex items-center gap-xs"
+      >
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search with AI…"
+          aria-label="AI search query"
+          className="min-h-[44px] flex-1 rounded-input border border-line bg-surface px-sm py-xs text-body text-ink"
+        />
+        <button
+          type="submit"
+          disabled={pending}
+          className="min-h-[44px] rounded-control bg-action px-md py-xs text-meta text-action-ink hover:bg-action-hover disabled:opacity-80"
+        >
+          Search
+        </button>
+        {aiRows !== null ? (
+          <button
+            type="button"
+            onClick={clear}
+            className="min-h-[44px] rounded-control border border-line bg-surface px-md py-xs text-meta text-ink hover:bg-raised"
+          >
+            Clear
+          </button>
+        ) : null}
+      </form>
+      {error ? (
+        <p className="mt-sm text-meta text-danger" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      {aiRows === null ? (
+        children
+      ) : (
+        <ol className="flex flex-col">
+          {aiRows.map(({ row, reason }, idx) => (
+            <TonightRow
+              key={row.option.id}
+              rank={idx + 1}
+              row={row}
+              onRejected={onRejected}
+              aiReason={reason}
+            />
+          ))}
+        </ol>
+      )}
     </>
   );
 }
