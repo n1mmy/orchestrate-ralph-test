@@ -123,9 +123,31 @@ export type TonightLogEntry = {
   eatenOn: string;
 };
 
+/**
+ * Today's `dinner_log` rows — the input the two-mode Tonight screen uses
+ * to switch between picker and decided mode. `createdAt` is the Pick
+ * order; `id` is the handle `deleteLogEntry` takes when the Household
+ * uses the inline Remove control.
+ *
+ * `phone` is always null for a Home meal — the Restaurant-only field
+ * just passes through whatever the schema carries.
+ */
+export type TonightTodayLogEntry = {
+  id: string;
+  optionId: string;
+  createdAt: Date;
+};
+
 export type TonightData = {
   options: TonightOption[];
   entries: TonightLogEntry[];
+  /**
+   * The subset of `entries` dated today (the Household's calendar day in
+   * `APP_TZ`), with the Log entry id and `createdAt` carried so the
+   * decided block can render in Pick order and the Remove control can
+   * address each entry by id.
+   */
+  todayEntries: TonightTodayLogEntry[];
 };
 
 /**
@@ -174,6 +196,20 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
     .innerJoin(options, eq(dinnerLog.optionId, options.id))
     .where(and(eq(options.active, true), lte(dinnerLog.eatenOn, todaySql)));
 
+  // Today's Log entries — the input to the picker/decided-mode split.
+  // Unlike `logRows` we keep this set unfiltered by `options.active`: an
+  // Option that has been Picked tonight and then Archived is still a
+  // real Pick the screen knows how to skip (its row is absent from
+  // `decidedRows`, so `splitTonight` drops the entry).
+  const todayRows = await db
+    .select({
+      id: dinnerLog.id,
+      optionId: dinnerLog.optionId,
+      createdAt: dinnerLog.createdAt,
+    })
+    .from(dinnerLog)
+    .where(eq(dinnerLog.eatenOn, todaySql));
+
   return {
     options: rows.map((row) => ({
       ...row,
@@ -182,6 +218,11 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
     entries: logRows.map((row) => ({
       optionId: row.optionId,
       eatenOn: row.eatenOn,
+    })),
+    todayEntries: todayRows.map((row) => ({
+      id: row.id,
+      optionId: row.optionId,
+      createdAt: row.createdAt,
     })),
   };
 }

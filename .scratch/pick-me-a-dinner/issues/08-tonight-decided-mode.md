@@ -1,6 +1,6 @@
 # 08 — Tonight decided mode: two-mode picker, action buttons, remove
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -53,44 +53,56 @@ The server actions need no new tests: `deleteLogEntry` is already covered by the
 
 ### Two-mode picker
 
-- [ ] With no Log entry dated today, Tonight renders picker mode — ranked list, kind segment, Tag filters — behaving as in the base Tonight
-- [ ] Picking an Option switches Tonight to decided mode, showing that Option under a "Tonight's dinner" `<h2>` sub-label; the `<h1>` heading stays "Tonight"
-- [ ] In decided mode the picker stays open below the "Tonight's dinner" block, inside an "Add another option" section with a divider, heading, and a hint that Picking adds a second dinner
-- [ ] An already-Picked Option is absent from the picker in decided mode
-- [ ] Picking a second Option appends it to Tonight's dinner; the picker stays open
-- [ ] When every Option is already Picked the picker area shows "Every Option is already on tonight's dinner." copy
-- [ ] A multi-Option Tonight's dinner lists Options in pick order, oldest `createdAt` first, and the order is stable when another is added
-- [ ] Returning to Tonight later the same day opens directly in decided mode; a new calendar day returns it to picker mode with no day-boundary logic
-- [ ] A decided-block Option's chips reflect its recency *before* tonight's Pick — `app/page.tsx` ranks the Catalog a second time over `entriesBeforeToday` to produce `decidedRows`
-- [ ] `getTonightData` returns `todayEntries` — today's `dinner_log` rows as `{ id, optionId, createdAt }`
-- [ ] `splitTonight` is a pure module (`lib/tonights-dinner.ts`, no DB/React) taking `(rankedRows, todayEntries, decidedRows)` and returning `{ tonightsDinner, picker }`; decided rows come from `decidedRows`
-- [ ] `splitTonight` is unit-tested (Vitest, `lib/tonights-dinner.test.ts`): no picks → empty dinner + full picker; one/several picks → picked Options excluded from the picker and ordered by `createdAt`; pick order stable as another is added; all Options picked → empty picker; a today entry for an Option absent from `decidedRows` is skipped without error; empty ranked set → both sides empty
-- [ ] The mode change is announced to assistive tech via a visually-hidden `aria-live` status region
+- [x] With no Log entry dated today, Tonight renders picker mode — ranked list, kind segment, Tag filters — behaving as in the base Tonight
+- [x] Picking an Option switches Tonight to decided mode, showing that Option under a "Tonight's dinner" `<h2>` sub-label; the `<h1>` heading stays "Tonight"
+- [x] In decided mode the picker stays open below the "Tonight's dinner" block, inside an "Add another option" section with a divider, heading, and a hint that Picking adds a second dinner
+- [x] An already-Picked Option is absent from the picker in decided mode
+- [x] Picking a second Option appends it to Tonight's dinner; the picker stays open
+- [x] When every Option is already Picked the picker area shows "Every Option is already on tonight's dinner." copy
+- [x] A multi-Option Tonight's dinner lists Options in pick order, oldest `createdAt` first, and the order is stable when another is added
+- [x] Returning to Tonight later the same day opens directly in decided mode; a new calendar day returns it to picker mode with no day-boundary logic
+- [x] A decided-block Option's chips reflect its recency *before* tonight's Pick — `app/page.tsx` ranks the Catalog a second time over `entriesBeforeToday` to produce `decidedRows`
+- [x] `getTonightData` returns `todayEntries` — today's `dinner_log` rows as `{ id, optionId, createdAt }`
+- [x] `splitTonight` is a pure module (`lib/tonights-dinner.ts`, no DB/React) taking `(rankedRows, todayEntries, decidedRows)` and returning `{ tonightsDinner, picker }`; decided rows come from `decidedRows`
+- [x] `splitTonight` is unit-tested (Vitest, `lib/tonights-dinner.test.ts`): no picks → empty dinner + full picker; one/several picks → picked Options excluded from the picker and ordered by `createdAt`; pick order stable as another is added; all Options picked → empty picker; a today entry for an Option absent from `decidedRows` is skipped without error; empty ranked set → both sides empty
+- [x] The mode change is announced to assistive tech via a visually-hidden `aria-live` status region
 
 ### Action buttons (Menu / Call / Recipe)
 
-- [ ] `TonightsDinnerBlock` renders a `<ul>` of decided rows; each row links the Option name to `/catalog/[id]` and shows the shared `RowChips` (Recency chip + Tag chips with per-Tag recency); no Explanation chip
-- [ ] Each decided row carries the 3px meal-kind left bar and a light kind-tinted wash background (`kind-home-wash` / `kind-restaurant-wash`) distinguishing the decided area from the picker
-- [ ] A Picked Restaurant with both fields shows a "Menu" button and a "Call" button
-- [ ] A Picked Restaurant missing one field shows only the button whose field is set; with neither, no action buttons
-- [ ] A Picked Home meal with a `url` shows a "Recipe" button; without a `url`, no button
-- [ ] A Home meal never shows "Menu" or "Call", even with a stray `phone`
-- [ ] "Call" is a `tel:` link; "Menu" and "Recipe" open the Option's `url` in a new tab
-- [ ] A `url` with a non-`http(s)` scheme (`javascript:`, `data:`) yields no "Menu"/"Recipe" button; an unsafe `url` still leaves a "Call" button when `phone` is set
-- [ ] `getTonightData` returns each Option's `url` and `phone`
-- [ ] `decidedActions` is unit-tested (Vitest, `lib/tonights-dinner.test.ts`) across the kind/field combinations and the unsafe-scheme cases
-- [ ] The action buttons are keyboard-operable with visible focus and meet the 44×44px touch-target minimum
+- [x] `TonightsDinnerBlock` renders a `<ul>` of decided rows; each row links the Option name to `/catalog/[id]` and shows the shared `RowChips` (Recency chip + Tag chips with per-Tag recency); no Explanation chip
+- [x] Each decided row carries the 3px meal-kind left bar and a light kind-tinted wash background (`kind-home-wash` / `kind-restaurant-wash`) distinguishing the decided area from the picker
+- [x] A Picked Restaurant with both fields shows a "Menu" button and a "Call" button
+- [x] A Picked Restaurant missing one field shows only the button whose field is set; with neither, no action buttons
+- [x] A Picked Home meal with a `url` shows a "Recipe" button; without a `url`, no button
+- [x] A Home meal never shows "Menu" or "Call", even with a stray `phone`
+- [x] "Call" is a `tel:` link; "Menu" and "Recipe" open the Option's `url` in a new tab
+- [x] A `url` with a non-`http(s)` scheme (`javascript:`, `data:`) yields no "Menu"/"Recipe" button; an unsafe `url` still leaves a "Call" button when `phone` is set
+- [x] `getTonightData` returns each Option's `url` and `phone`
+- [x] `decidedActions` is unit-tested (Vitest, `lib/tonights-dinner.test.ts`) across the kind/field combinations and the unsafe-scheme cases
+- [x] The action buttons are keyboard-operable with visible focus and meet the 44×44px touch-target minimum
 
 ### Remove a pick
 
-- [ ] Each decided-block row has an inline "Remove" control on the row's right edge, beside the Option name
-- [ ] "Remove" arms an inline confirm on first tap, showing a confirming "Remove" plus a "Cancel"; "Cancel" disarms it
-- [ ] Confirming "Remove" deletes today's Log entry for that Option, identified by the `entryId` on its `TonightsDinnerEntry`
-- [ ] After a Remove the Option is gone from Tonight's dinner and reappears in the picker (the server recomputes `splitTonight` on revalidation)
-- [ ] Removing the last Option in Tonight's dinner drops the screen back to picker mode with no special-casing
-- [ ] Removal reuses the existing `deleteLogEntry` server action — no new server action is introduced
-- [ ] "Remove" is keyboard-operable with visible focus and meets the 44×44px touch-target minimum
+- [x] Each decided-block row has an inline "Remove" control on the row's right edge, beside the Option name
+- [x] "Remove" arms an inline confirm on first tap, showing a confirming "Remove" plus a "Cancel"; "Cancel" disarms it
+- [x] Confirming "Remove" deletes today's Log entry for that Option, identified by the `entryId` on its `TonightsDinnerEntry`
+- [x] After a Remove the Option is gone from Tonight's dinner and reappears in the picker (the server recomputes `splitTonight` on revalidation)
+- [x] Removing the last Option in Tonight's dinner drops the screen back to picker mode with no special-casing
+- [x] Removal reuses the existing `deleteLogEntry` server action — no new server action is introduced
+- [x] "Remove" is keyboard-operable with visible focus and meets the 44×44px touch-target minimum
 
 ## Blocked by
 
 - 07 — Tonight: ranked list, pick=log, Log screen, tag filters
+
+## Comments
+
+- 2026-05-20: Added `lib/tonights-dinner.ts` (pure `splitTonight` +
+  `decidedActions` with `safeHttpUrl`) with a 21-test Vitest suite.
+  Extended `getTonightData` to return `todayEntries: { id, optionId,
+  createdAt }`. `app/page.tsx` ranks twice (live + `entriesBeforeToday`)
+  and threads `splitTonight` output into `TonightScreen`. New
+  `TonightsDinnerBlock` renders the decided block with kind-wash rows,
+  shared `RowChips`, name link to `/catalog/[id]`, action buttons, and
+  the inline `RemoveControl` (reuses `deleteLogEntry`). Gate green
+  (`pnpm typecheck`, `pnpm test`, `pnpm build`).
