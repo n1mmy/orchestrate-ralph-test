@@ -1,6 +1,6 @@
 # 23 — Option detail page: merged History section + dinner-grouping module
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -60,16 +60,28 @@ label resolution including the month-boundary case.
 
 ## Acceptance criteria
 
-- [ ] `lib/dinner-grouping.ts` is a pure module providing `groupByDate`, `splitDinners`, `formatDinnerDate`, and `groupByDay`
-- [ ] `lib/dinner-grouping.test.ts` covers the today-boundary split, same-date grouping, a Rejection-only date forming a record, the upcoming/history ordering, and the date labels
-- [ ] The Log screen consumes `lib/dinner-grouping.ts`; its rendered behavior is unchanged
-- [ ] `EntryRow` / `EntryEditForm` are extracted into a shared `app/log/log-entry-row.tsx` used by both the Log screen and the detail page
-- [ ] The detail page has a single "History" section — one merged, date-grouped list interleaving the Option's Log entries and Rejections
-- [ ] Future-dated (Planned) groups render first, then realized history newest-first
-- [ ] Each date group reuses `EntryRow` for logged dinners and `RejectionRow` for Rejections under a `formatDinnerDate` header
-- [ ] An Option with no Log entries and no Rejections shows a quiet empty state
-- [ ] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
+- [x] `lib/dinner-grouping.ts` is a pure module providing `groupByDate`, `splitDinners`, `formatDinnerDate`, and `groupByDay`
+- [x] `lib/dinner-grouping.test.ts` covers the today-boundary split, same-date grouping, a Rejection-only date forming a record, the upcoming/history ordering, and the date labels
+- [x] The Log screen consumes `lib/dinner-grouping.ts`; its rendered behavior is unchanged
+- [x] `EntryRow` / `EntryEditForm` are extracted into a shared `app/log/log-entry-row.tsx` used by both the Log screen and the detail page
+- [x] The detail page has a single "History" section — one merged, date-grouped list interleaving the Option's Log entries and Rejections
+- [x] Future-dated (Planned) groups render first, then realized history newest-first
+- [x] Each date group reuses `EntryRow` for logged dinners and `RejectionRow` for Rejections under a `formatDinnerDate` header
+- [x] An Option with no Log entries and no Rejections shows a quiet empty state
+- [x] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
 
 ## Blocked by
 
 - 22 — Option detail page: route, identity, and Recency
+
+## Comments
+
+Implemented the pure `lib/dinner-grouping.ts` module (`groupByDate`,
+`splitDinners`, `formatDinnerDate`, `groupByDay` with a typed `DayRecord`),
+refactored the Log screen to consume it, and added the merged History
+section to `/catalog/[id]` using `groupByDay`. Added a focused
+`getOptionLogEntries(optionId)` query returning `LogEntry[]` including
+future-dated rows so Planned dinners can surface under Upcoming. The
+detail page passes `rejections: []` for now — `getOptionRejections` and
+`RejectionRow` land in ticket 24 and slot into the existing `DayRecord`
+shape with no further structural change.

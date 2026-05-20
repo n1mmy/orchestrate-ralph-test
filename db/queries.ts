@@ -499,6 +499,48 @@ export async function getOptionLog(
 }
 
 /**
+ * Every `dinner_log` row for one Option, joined to that Option, in the same
+ * `LogEntry` shape the Log screen consumes — newest `eaten_on` first, with
+ * `created_at` breaking a same-date tie. Both past and future entries are
+ * included; the Option detail page's merged History section relies on this
+ * (a Planned dinner for the Option must surface under Upcoming, not be
+ * filtered out the way `getOptionLog` does for ranking).
+ *
+ * A malformed (non-UUID) id collapses to an empty list rather than a
+ * Postgres-side cast error, mirroring `getOptionById`.
+ */
+export async function getOptionLogEntries(
+  optionId: string,
+): Promise<LogEntry[]> {
+  if (!UUID_RE.test(optionId)) return [];
+  const rows = await db
+    .select({
+      id: dinnerLog.id,
+      optionId: dinnerLog.optionId,
+      eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
+      createdAt: dinnerLog.createdAt,
+      option: {
+        id: options.id,
+        name: options.name,
+        kind: options.kind,
+        active: options.active,
+      },
+    })
+    .from(dinnerLog)
+    .innerJoin(options, eq(options.id, dinnerLog.optionId))
+    .where(eq(dinnerLog.optionId, optionId))
+    .orderBy(desc(dinnerLog.eatenOn), desc(dinnerLog.createdAt));
+  return rows.map((r) => ({
+    id: r.id,
+    optionId: r.optionId,
+    eatenOn: r.eatenOn,
+    note: r.note,
+    option: r.option,
+  }));
+}
+
+/**
  * Today's Rejections — every `rejections` row whose `rejected_on` equals
  * `todaySqlDate`, joined to its active Option, newest `created_at` first.
  *
