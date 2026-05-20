@@ -1,6 +1,6 @@
 # 32 — Log screen: interleaved Rejections and the shared RejectionRow
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -32,16 +32,16 @@ Visual styling is `DESIGN.md`'s call; this ticket fixes the controls and the int
 
 ## Acceptance criteria
 
-- [ ] `LogScreen` consumes `groupByDay(entries, rejections, today)` and renders interleaved `DayGroup`s — Log entries first, then Rejections; a Rejection-only date forms its own group
-- [ ] Future-dated groups (Planned dinners and Planned rejections) sit in a capped "Upcoming" strip (`UPCOMING_CAP = 5`) with a "+N more planned" line when the cap bites; past/today groups in History
-- [ ] The Log page route loads `getLogRejections()` and `getOptionChoices()` and passes them to `LogScreen`; the empty state shows only when entries and Rejections are both empty
-- [ ] Separate "+ Add a dinner" and "+ Add a rejection" controls at the top of the Log, each opening its inline form with a Cancel; each `DayGroup` offers "+ Dinner" / "+ Rejection" with the date pre-filled to the group's date
-- [ ] A new `app/log/rejection-row.tsx` exports `AddRejectionForm` and `RejectionRow`, sharing one internal `RejectionForm` body, built for reuse by the Option detail page
-- [ ] `AddRejectionForm` takes an Option select, a date, and an optional reason; calls `createRejection`; `onSaved` fires only on `ok`
-- [ ] `RejectionRow` shows the Option name (linked to its detail page) and the reason; Edit expands inline into the form (Option, date, reason → `updateRejection`); Delete uses the §17 inline-confirm and calls `deleteRejection`; both work regardless of the Rejection's age
-- [ ] A duplicate `(option_id, rejected_on)` on add or edit shows the inline "Already rejected for that date" error; a failed write is reported inline with `role="alert"`, never as success
-- [ ] A Rejection added/edited to today drops its Option off Tonight via the action revalidation; a past-dated one leaves Tonight unchanged — no new suppression code
-- [ ] Add, edit, delete, and confirm controls are keyboard-operable with visible focus and `min-h-11` touch targets; a saved edit announces "Saved" via `aria-live`
+- [x] `LogScreen` consumes `groupByDay(entries, rejections, today)` and renders interleaved `DayGroup`s — Log entries first, then Rejections; a Rejection-only date forms its own group
+- [x] Future-dated groups (Planned dinners and Planned rejections) sit in a capped "Upcoming" strip (`UPCOMING_CAP = 5`) with a "+N more planned" line when the cap bites; past/today groups in History
+- [x] The Log page route loads `getLogRejections()` and `getOptionChoices()` and passes them to `LogScreen`; the empty state shows only when entries and Rejections are both empty
+- [x] Separate "+ Add a dinner" and "+ Add a rejection" controls at the top of the Log, each opening its inline form with a Cancel; each `DayGroup` offers "+ Dinner" / "+ Rejection" with the date pre-filled to the group's date
+- [x] A new `app/log/rejection-row.tsx` exports `AddRejectionForm` and `RejectionRow`, sharing one internal `RejectionForm` body, built for reuse by the Option detail page
+- [x] `AddRejectionForm` takes an Option select, a date, and an optional reason; calls `createRejection`; `onSaved` fires only on `ok`
+- [x] `RejectionRow` shows the Option name (linked to its detail page) and the reason; Edit expands inline into the form (Option, date, reason → `updateRejection`); Delete uses the §17 inline-confirm and calls `deleteRejection`; both work regardless of the Rejection's age
+- [x] A duplicate `(option_id, rejected_on)` on add or edit shows the inline "Already rejected for that date" error; a failed write is reported inline with `role="alert"`, never as success
+- [x] A Rejection added/edited to today drops its Option off Tonight via the action revalidation; a past-dated one leaves Tonight unchanged — no new suppression code
+- [x] Add, edit, delete, and confirm controls are keyboard-operable with visible focus and `min-h-11` touch targets; a saved edit announces "Saved" via `aria-live`
 
 ## Blocked by
 

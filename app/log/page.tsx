@@ -1,4 +1,9 @@
-import { getLog, getLogOptionChoices } from "@/db/queries";
+import {
+  getLog,
+  getLogOptionChoices,
+  getLogRejections,
+  getOptionChoices,
+} from "@/db/queries";
 import { today as todaySqlDate } from "@/lib/local-day";
 import { LogScreen } from "./log-screen";
 
@@ -11,18 +16,28 @@ import { LogScreen } from "./log-screen";
  * "Today" is computed in the Household's time zone (`APP_TZ`) so the
  * Upcoming/history split happens at the calendar day in the kitchen, not the
  * server's UTC day.
+ *
+ * The page loads four datasets in parallel: every Log entry, every Rejection,
+ * the `LogOptionChoice[]` the Log-entry edit `<select>` consumes (carrying
+ * the `active` flag so an Archived Option's row stays editable), and the
+ * leaner `OptionChoice[]` the new Rejection add-forms consume.
  */
 export const dynamic = "force-dynamic";
 
 export default async function LogPage() {
-  const [entries, optionChoices] = await Promise.all([
-    getLog(),
-    getLogOptionChoices(),
-  ]);
+  const [entries, rejections, optionChoices, rejectionOptionChoices] =
+    await Promise.all([
+      getLog(),
+      getLogRejections(),
+      getLogOptionChoices(),
+      getOptionChoices(),
+    ]);
   return (
     <LogScreen
       entries={entries}
+      rejections={rejections}
       optionChoices={optionChoices}
+      rejectionOptionChoices={rejectionOptionChoices}
       todaySql={todaySqlDate()}
     />
   );
