@@ -178,3 +178,71 @@ export function rankTonight(
   });
   return rows;
 }
+
+/**
+ * The inputs `rankOption` needs to rank a single Option. `target` is the
+ * Option to rank (and may be Active or Archived); `activeOptions` is the
+ * active Catalog the per-Tag recency reads against (an Archived Option's
+ * history does not count, per CONTEXT.md's Recency definition);
+ * `activeLog` is the active-Options-only Log feeding the per-Tag recency;
+ * `targetLog` is the Option's own Log entries — kept separate so an
+ * Archived `target` can still surface its own per-Option recency despite
+ * not appearing in `activeLog`; `today` is the calendar day in epoch-days.
+ */
+export type RankOptionInput = {
+  target: RankOption;
+  activeOptions: readonly RankOption[];
+  activeLog: readonly RankLogEntry[];
+  targetLog: readonly RankLogEntry[];
+  today: number;
+};
+
+/**
+ * The single-Option ranking surfaced by the Option detail page. `score` is
+ * `null` for an Archived Option — the detail page never renders a Score
+ * number, but downstream consumers (ticket 26) need to know an Archived
+ * Option has no comparable Score against the active Catalog. `tags`,
+ * `recencyDays`, and `neverEaten` mirror `TonightRow`, so the detail page
+ * feeds the same `RowChips` component the Tonight row uses.
+ */
+export type OptionRanking = {
+  score: number | null;
+  tags: TagRecency[];
+  /** The Option's per-Option recency in days, capped at `CAP`. */
+  recencyDays: number;
+  /** `true` when the Option has no non-future Log entry. */
+  neverEaten: boolean;
+};
+
+/**
+ * Rank a single Option for the Option detail page. Reuses the same recency
+ * internals as `rankTonight` (`lastEaten` / `lastTagUse` / `daysSince` /
+ * `optionScore`) so the detail page and Tonight agree on every number —
+ * the result for an Active Option equals that Option's row in
+ * `rankTonight` over the same inputs.
+ *
+ * For an Archived `target` (one absent from `activeOptions`), `score`
+ * returns `null` — an Archived Option is not in the Tonight ranking, so it
+ * has no comparable Score against the active Catalog. The per-Option
+ * recency still resolves from `targetLog` because the Archived Option's
+ * own past dinners are still visible on its detail page.
+ */
+export function rankOption(input: RankOptionInput): OptionRanking {
+  const { target, activeOptions, activeLog, targetLog, today } = input;
+  const last = lastEaten(targetLog, target.id, today);
+  const recencyDays = daysSince(last, today);
+  const neverEaten = last === null;
+  const tags: TagRecency[] = target.tags.map((tag) => {
+    const tagLast = lastTagUse(activeLog, activeOptions, tag, today);
+    const days = daysSince(tagLast, today);
+    return { tag, days, overdue: days >= OVERDUE_THRESHOLD };
+  });
+  const isActive = activeOptions.some((o) => o.id === target.id);
+  const score = isActive
+    ? optionScore(
+        recencyDays,
+        tags.map((t) => t.days),
+      )
+    : null;
+  return { score, tags, recencyDays, neverEaten };
+}

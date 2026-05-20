@@ -4,6 +4,7 @@ import {
   lastEaten,
   lastTagUse,
   optionScore,
+  rankOption,
   rankTonight,
   type RankLogEntry,
   type RankOption,
@@ -208,5 +209,64 @@ describe("rankTonight", () => {
     const [row] = rankTonight(options, entries, TODAY);
     expect(row.recencyDays).toBe(CAP);
     expect(row.neverEaten).toBe(true);
+  });
+});
+
+describe("rankOption", () => {
+  it("for an Active Option, returns the same numbers as that Option's `rankTonight` row over the same inputs", () => {
+    const target = option("a", "Aji", ["fish", "japanese"]);
+    const others: RankOption[] = [
+      target,
+      option("b", "Burger", ["beef"]),
+      option("c", "Salmon", ["fish"]),
+    ];
+    const entries: RankLogEntry[] = [
+      entry("a", TODAY - 7),
+      entry("b", TODAY - 30),
+      entry("c", TODAY - 3),
+    ];
+    const tonight = rankTonight(others, entries, TODAY);
+    const expected = tonight.find((r) => r.option.id === "a");
+    if (!expected) throw new Error("Target row missing from rankTonight");
+
+    const result = rankOption({
+      target,
+      activeOptions: others,
+      activeLog: entries,
+      targetLog: entries,
+      today: TODAY,
+    });
+
+    expect(result.score).toBe(expected.score);
+    expect(result.recencyDays).toBe(expected.recencyDays);
+    expect(result.neverEaten).toBe(expected.neverEaten);
+    expect(result.tags).toEqual(expected.tags);
+  });
+
+  it("flags an Option with no non-future Log entry as never-eaten and caps recency at CAP", () => {
+    const target = option("a", "Aji", []);
+    const result = rankOption({
+      target,
+      activeOptions: [target],
+      activeLog: [],
+      targetLog: [],
+      today: TODAY,
+    });
+    expect(result.neverEaten).toBe(true);
+    expect(result.recencyDays).toBe(CAP);
+  });
+
+  it("a future Planned dinner does not satisfy never-eaten — recency still pins at CAP", () => {
+    const target = option("a", "Aji", []);
+    const targetLog = [entry("a", TODAY + 5)];
+    const result = rankOption({
+      target,
+      activeOptions: [target],
+      activeLog: targetLog,
+      targetLog,
+      today: TODAY,
+    });
+    expect(result.neverEaten).toBe(true);
+    expect(result.recencyDays).toBe(CAP);
   });
 });
