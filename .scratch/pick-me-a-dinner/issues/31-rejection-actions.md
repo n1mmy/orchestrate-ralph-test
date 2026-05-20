@@ -1,6 +1,6 @@
 # 31 — Rejection-management server actions + Log Rejections queries
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -31,15 +31,15 @@ Add `app/rejection-actions.db.test.ts`, modelled on `app/log/actions.db.test.ts`
 
 ## Acceptance criteria
 
-- [ ] `app/rejection-actions.ts` holds `createRejection`, `updateRejection`, `deleteRejection`, and `rejectOption`, all `authedAction`-wrapped, rejecting an unauthenticated caller
-- [ ] A shared `recordRejection` core backs both `createRejection` and `rejectOption`; a shared `rejectionWriteError` maps `23505` → "Already rejected for that date" and `22P02`/`23503` → "That option is no longer available"
-- [ ] Create and update validate the date with `isValidSqlDate`, store an empty/whitespace reason as `null`, and reject an invalid date with `{ ok: false, error: "Pick a valid date" }`
-- [ ] A duplicate `(option_id, rejected_on)` on create or update returns the inline collision error rather than throwing; the row is left untouched on a failed update
-- [ ] `deleteRejection` removes the `rejections` row entirely and returns `void`; it is the one shared action behind Tonight's "Bring back"
-- [ ] `rejectOption` dates the Rejection to the Household's `today()` and inherits the `23505` handling
-- [ ] A shared `revalidateRejectionViews()` revalidates `/`, `/log`, and `/catalog/[id]`
-- [ ] `db/queries.ts` exports `getLogRejections()` (all Rejections, joined, `desc(rejectedOn)` then `asc(name)`), `getOptionRejections(optionId)` (one Option, `desc(rejectedOn)` then `desc(createdAt)`), both as `LogRejectionRow`, and `getOptionChoices()` covering Active and Archived Options
-- [ ] `app/rejection-actions.db.test.ts` integration-tests create / update / delete / `rejectOption` and the new queries against the real test database, including both collision paths, modelled on `app/log/actions.db.test.ts`
+- [x] `app/rejection-actions.ts` holds `createRejection`, `updateRejection`, `deleteRejection`, and `rejectOption`, all `authedAction`-wrapped, rejecting an unauthenticated caller
+- [x] A shared `recordRejection` core backs both `createRejection` and `rejectOption`; a shared `rejectionWriteError` maps `23505` → "Already rejected for that date" and `22P02`/`23503` → "That option is no longer available"
+- [x] Create and update validate the date with `isValidSqlDate`, store an empty/whitespace reason as `null`, and reject an invalid date with `{ ok: false, error: "Pick a valid date" }`
+- [x] A duplicate `(option_id, rejected_on)` on create or update returns the inline collision error rather than throwing; the row is left untouched on a failed update
+- [x] `deleteRejection` removes the `rejections` row entirely and returns `void`; it is the one shared action behind Tonight's "Bring back"
+- [x] `rejectOption` dates the Rejection to the Household's `today()` and inherits the `23505` handling
+- [x] A shared `revalidateRejectionViews()` revalidates `/`, `/log`, and `/catalog/[id]`
+- [x] `db/queries.ts` exports `getLogRejections()` (all Rejections, joined, `desc(rejectedOn)` then `asc(name)`), `getOptionRejections(optionId)` (one Option, `desc(rejectedOn)` then `desc(createdAt)`), both as `LogRejectionRow`, and `getOptionChoices()` covering Active and Archived Options
+- [x] `app/rejection-actions.db.test.ts` integration-tests create / update / delete / `rejectOption` and the new queries against the real test database, including both collision paths, modelled on `app/log/actions.db.test.ts`
 
 ## Blocked by
 
