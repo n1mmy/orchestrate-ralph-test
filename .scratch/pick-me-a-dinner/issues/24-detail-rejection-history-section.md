@@ -1,6 +1,6 @@
 # 24 — Option detail page: Rejections in History + Bring-back parity
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -50,13 +50,13 @@ reused `RejectionRow` are the whole of the work.
 
 ## Acceptance criteria
 
-- [ ] `getOptionRejections(optionId)` returns every `rejections` row for the Option as `LogRejectionRow`, newest `rejected_on` first, not filtered to active Options
-- [ ] The detail page renders each Rejection inside the merged History section's date groups, after that date's logged dinners
-- [ ] Rejections are rendered with the reused `RejectionRow` component from `app/log/rejection-row.tsx`
-- [ ] A Rejection can be edited inline (Option, date, reason) and deleted via §17 inline-confirm from the History section
-- [ ] An edit or delete of a Rejection revalidates `/catalog/[id]` and refreshes the page in place
-- [ ] A Rejection's optional reason renders as a quiet line; a Rejection with no reason renders cleanly without one
-- [ ] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
+- [x] `getOptionRejections(optionId)` returns every `rejections` row for the Option as `LogRejectionRow`, newest `rejected_on` first, not filtered to active Options
+- [x] The detail page renders each Rejection inside the merged History section's date groups, after that date's logged dinners
+- [x] Rejections are rendered with the reused `RejectionRow` component from `app/log/rejection-row.tsx`
+- [x] A Rejection can be edited inline (Option, date, reason) and deleted via §17 inline-confirm from the History section
+- [x] An edit or delete of a Rejection revalidates `/catalog/[id]` and refreshes the page in place
+- [x] A Rejection's optional reason renders as a quiet line; a Rejection with no reason renders cleanly without one
+- [x] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
 
 ## Blocked by
 
