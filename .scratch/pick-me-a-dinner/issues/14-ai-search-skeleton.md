@@ -119,3 +119,7 @@ yet hide in AI mode.
 - 11 — Two-mode Tonight (the search box renders inside the decided-mode
   picker in `app/tonight-screen.tsx`; the action buttons of 12/13 are not
   on the AI-search path)
+
+## Comments
+
+- attempt 1: permission-denied on `env -i PATH="$PATH" HOME="$HOME" pnpm build 2>&1 | tail -30` — a compound shape (env-prefix + pipe + redirect) the matcher rejects as one pattern. To verify the "passes with no env vars" criterion, run a bare `pnpm build` in your worktree (a fresh worktree already has none of the runtime env vars set); do not try to clear the environment with an `env -i` prefix or pipe output through `tail`. Run each gate command bare, no compound shapes.
