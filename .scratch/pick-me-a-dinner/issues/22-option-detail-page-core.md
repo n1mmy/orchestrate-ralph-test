@@ -1,6 +1,6 @@
 # 22 — Option detail page: route, identity, and Recency
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -70,16 +70,16 @@ in ticket 27.
 
 ## Acceptance criteria
 
-- [ ] `app/catalog/[id]/page.tsx` is a `force-dynamic` server component rendering a detail page for an active Option of either kind
-- [ ] A request for an id matching no `options` row, or a malformed id, renders Next's `notFound()`
-- [ ] The header shows a "Restaurant" / "Home meal" kind label above the Option name, carried by the meal-kind color channel
-- [ ] A "Recency" section renders `RowChips` — the per-Option Recency chip plus the Tag heatmap chips — fed from `rankOption`
-- [ ] A conditional "Details" `<dl>` shows notes, the `url` as a clickable link, and for a Restaurant the address, `phone` as a `tel:` link, and a Google Maps link; a Home meal omits the Restaurant-only fields
-- [ ] The page renders no Score number anywhere
-- [ ] `rankOption` is added to `lib/ranking.ts`, reusing the existing recency internals, and its result for an active Option matches that Option's `rankTonight` row over the same inputs
-- [ ] `lib/ranking.test.ts` covers `rankOption` — an active Option matches `rankTonight`, plus the never-eaten flag and `CAP` recency
-- [ ] The Option name on a Catalog row links to `/catalog/[id]`
-- [ ] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
+- [x] `app/catalog/[id]/page.tsx` is a `force-dynamic` server component rendering a detail page for an active Option of either kind
+- [x] A request for an id matching no `options` row, or a malformed id, renders Next's `notFound()`
+- [x] The header shows a "Restaurant" / "Home meal" kind label above the Option name, carried by the meal-kind color channel
+- [x] A "Recency" section renders `RowChips` — the per-Option Recency chip plus the Tag heatmap chips — fed from `rankOption`
+- [x] A conditional "Details" `<dl>` shows notes, the `url` as a clickable link, and for a Restaurant the address, `phone` as a `tel:` link, and a Google Maps link; a Home meal omits the Restaurant-only fields
+- [x] The page renders no Score number anywhere
+- [x] `rankOption` is added to `lib/ranking.ts`, reusing the existing recency internals, and its result for an active Option matches that Option's `rankTonight` row over the same inputs
+- [x] `lib/ranking.test.ts` covers `rankOption` — an active Option matches `rankTonight`, plus the never-eaten flag and `CAP` recency
+- [x] The Option name on a Catalog row links to `/catalog/[id]`
+- [x] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
 
 ## Blocked by
 

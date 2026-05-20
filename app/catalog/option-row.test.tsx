@@ -87,4 +87,14 @@ describe("OptionRow", () => {
     // The form's Save and Cancel buttons appear; the row's action cluster is gone.
     expect(screen.getByRole("button", { name: "Save" })).toBeDefined();
   });
+
+  it("links the Option name to its detail page at /catalog/[id]", () => {
+    render(
+      <ul>
+        <OptionRow option={OPTION} tagSuggestions={[]} />
+      </ul>,
+    );
+    const link = screen.getByRole("link", { name: "Pasta" });
+    expect(link.getAttribute("href")).toBe("/catalog/1");
+  });
 });

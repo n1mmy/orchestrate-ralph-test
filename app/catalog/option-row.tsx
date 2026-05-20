@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { OptionForm } from "./option-form";
 import { archiveOption, deleteOption } from "./actions";
@@ -69,7 +70,12 @@ export function OptionRow({
   return (
     <li className="flex flex-col gap-2xs border-b border-line py-sm">
       <div className="flex items-center justify-between gap-sm">
-        <span className="font-display text-name">{option.name}</span>
+        <Link
+          href={`/catalog/${option.id}`}
+          className="font-display text-name underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
+        >
+          {option.name}
+        </Link>
         <div className="flex gap-xs">
           {confirm === "none" ? (
             <>

@@ -313,6 +313,116 @@ export type TodayRejection = {
 };
 
 /**
+ * One Option as the Option detail page consumes it — every field on
+ * `options` (Active or Archived) plus the Option's Tag names. `active` is
+ * carried so the page can branch on Archived. Restaurant-only fields are
+ * nullable for a Home meal — the page renders them only when set and only
+ * for a Restaurant.
+ */
+export type OptionDetail = {
+  id: string;
+  name: string;
+  kind: "home" | "restaurant";
+  url: string | null;
+  notes: string | null;
+  active: boolean;
+  address: string | null;
+  phone: string | null;
+  lat: number | null;
+  lng: number | null;
+  googlePlaceId: string | null;
+  mapsUrl: string | null;
+  tags: string[];
+};
+
+/**
+ * Standard 8-4-4-4-12 hexadecimal UUID shape — matches Postgres's `uuid`
+ * input format. Used to screen a `params.id` from the route at the query
+ * boundary so a non-UUID id collapses to a clean `null` rather than a
+ * Postgres-side cast error a 500 would surface to the Household.
+ */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Load one Option by id, with its Tag names. Returns `null` when no
+ * `options` row matches — both for a malformed (non-UUID) id and for a
+ * well-formed id matching no row. The detail page renders Next's
+ * `notFound()` against this `null`, so a stale link to a hard-deleted
+ * Option lands on a 404 rather than a 500.
+ *
+ * **Not filtered to active Options.** An Archived Option's detail page is
+ * still reachable from the Log screen and from a stale link; per
+ * CONTEXT.md an Archived Option's history is preserved, so its detail
+ * page must keep loading.
+ */
+export async function getOptionById(id: string): Promise<OptionDetail | null> {
+  if (!UUID_RE.test(id)) return null;
+  const rows = await db
+    .select({
+      option: options,
+      tagName: tags.name,
+    })
+    .from(options)
+    .leftJoin(optionTags, eq(optionTags.optionId, options.id))
+    .leftJoin(tags, eq(tags.id, optionTags.tagId))
+    .where(eq(options.id, id));
+
+  if (rows.length === 0) return null;
+  const first = rows[0]!.option;
+  const detail: OptionDetail = {
+    id: first.id,
+    name: first.name,
+    kind: first.kind,
+    url: first.url,
+    notes: first.notes,
+    active: first.active,
+    address: first.address,
+    phone: first.phone,
+    lat: first.lat,
+    lng: first.lng,
+    googlePlaceId: first.googlePlaceId,
+    mapsUrl: first.mapsUrl,
+    tags: [],
+  };
+  for (const r of rows) {
+    if (r.tagName) detail.tags.push(r.tagName);
+  }
+  return detail;
+}
+
+/**
+ * The Option's own Log — every `dinner_log` row for `optionId`, in the
+ * shape `rankOption` consumes. Filtered to non-future entries so a
+ * Planned dinner does not feed the per-Option recency. Kept distinct from
+ * `getTonightData`'s active-only `entries` because an Archived Option's
+ * own past dinners are still visible on its detail page even though they
+ * are excluded from the active Catalog ranking.
+ */
+export async function getOptionLog(
+  optionId: string,
+  todaySqlDate: string,
+): Promise<RankLogEntry[]> {
+  if (!UUID_RE.test(optionId)) return [];
+  const rows = await db
+    .select({
+      optionId: dinnerLog.optionId,
+      eatenOn: dinnerLog.eatenOn,
+    })
+    .from(dinnerLog)
+    .where(
+      and(
+        eq(dinnerLog.optionId, optionId),
+        lte(dinnerLog.eatenOn, todaySqlDate),
+      ),
+    );
+  return rows.map((r) => ({
+    optionId: r.optionId,
+    eatenOn: epochDayFromSqlDate(r.eatenOn),
+  }));
+}
+
+/**
  * Today's Rejections — every `rejections` row whose `rejected_on` equals
  * `todaySqlDate`, joined to its active Option, newest `created_at` first.
  *
