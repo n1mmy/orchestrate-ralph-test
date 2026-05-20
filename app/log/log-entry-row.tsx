@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { deleteLogEntry, updateLogEntry } from "./actions";
 import type { LogEntry, LogOptionChoice } from "@/db/queries";
 
 /**
- * One Log entry row, with inline edit and inline-confirm delete (§17). v1
- * shows only the Option name and the optional note plus the Edit / Delete
- * actions — the Option-name link to `/catalog/[id]` and the per-row
- * PickButton are later phases (per the ticket's "v1 Log rows show only the
- * Option name and note with Edit / Delete" note).
+ * One Log entry row, with inline edit and inline-confirm delete (§17). The
+ * Option name links to `/catalog/[id]` (ticket 27); the row's actions are
+ * Edit and inline-confirm Delete. The per-row PickButton is a later phase
+ * (per the ticket's "v1 Log rows show only the Option name and note with
+ * Edit / Delete" note).
  *
  * Editing expands the row in place into a form that lets the Household
  * change the Option (a `<select>` of every Option — Active and Archived, so
@@ -156,7 +157,12 @@ export function LogEntryRow({
     <li className="flex flex-col gap-2xs">
       <div className="flex items-center justify-between gap-sm">
         <div className="flex flex-col">
-          <span className="font-display text-name">{entry.option.name}</span>
+          <Link
+            href={`/catalog/${entry.optionId}`}
+            className="font-display text-name underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
+          >
+            {entry.option.name}
+          </Link>
           {entry.note ? (
             <span className="text-meta text-muted">{entry.note}</span>
           ) : null}
