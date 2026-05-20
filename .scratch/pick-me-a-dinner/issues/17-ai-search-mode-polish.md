@@ -1,6 +1,6 @@
 # 17 — AI search: mode polish, habit reasoning, and accessibility
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -65,36 +65,55 @@ control are keyboard-reachable with a visible focus ring and have adequate
 
 ## Acceptance criteria
 
-- [ ] `buildSystemPrompt` produces a habit-reasoning prompt (cadence,
+- [x] `buildSystemPrompt` produces a habit-reasoning prompt (cadence,
       day-of-week rhythm, streaks, drift) that explicitly tells the model not to
       just re-sort recency, and explains the Rejections block and the
       `<household-text>` delimiter rule
-- [ ] Every model call enables extended thinking; `AI_EFFORT`
+- [x] Every model call enables extended thinking; `AI_EFFORT`
       (`off`/`low`/`medium`/`high`, default `low`) is the single effort knob
-- [ ] Budget-API models (Sonnet, Haiku) use `thinking.type: "enabled"` with
+- [x] Budget-API models (Sonnet, Haiku) use `thinking.type: "enabled"` with
       `budget_tokens` mapped from effort; the adaptive-API model (Opus 4.7) uses
       `thinking.type: "adaptive"` + `output_config.effort` and is streamed via
       `messages.stream(...).finalMessage()`
-- [ ] `resolveTailMode` reads `AI_TAIL_MODE` (`full`/`pithy`/`drop`, default
+- [x] `resolveTailMode` reads `AI_TAIL_MODE` (`full`/`pithy`/`drop`, default
       `pithy`); `buildSystemPrompt` swaps only the open-query instruction by
       mode and shares the rest
-- [ ] In `pithy` mode an obviously bad pick gets an empty-string rationale; a
+- [x] In `pithy` mode an obviously bad pick gets an empty-string rationale; a
       narrowing query returns a focused shortlist in every mode
-- [ ] The kind segment and Tag filter chips are hidden while an AI result is
+- [x] The kind segment and Tag filter chips are hidden while an AI result is
       shown (via the Picker's `onAiActiveChange` callback) and restored on clear
-- [ ] The search box shows a pending state and is disabled while a search is in
+- [x] The search box shows a pending state and is disabled while a search is in
       flight; the deterministic list stays visible underneath until the result
       arrives
-- [ ] An `aria-live` region announces the pending state, the swap, the empty
+- [x] An `aria-live` region announces the pending state, the swap, the empty
       result, and the return to the deterministic list; the search box, Search,
       and Clear controls are keyboard-operable with visible focus and ≥44px
       touch targets
-- [ ] Unit tests (`lib/ai-search.test.ts`) cover `resolveTailMode`,
+- [x] Unit tests (`lib/ai-search.test.ts`) cover `resolveTailMode`,
       `buildSystemPrompt` per-mode instructions, and the Opus streaming /
       adaptive-shape path; a screen-level test covers
       clearing-restores-the-filter-zone and the in-flight disable
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
 
 ## Blocked by
 
 - 16 — AI search: result hardening and empty state
+
+## Comments
+
+Done. `buildSystemPrompt({ tailMode })` carries the habit-reasoning core
+(cadence, day-of-week rhythm, streaks, drift; the explicit no-recency-resort;
+the Rejections-block split; the `<household-text>` delimiter rule) with only
+the open-query instruction swapped by `TailMode`. `resolveTailMode` /
+`resolveEffort` read `AI_TAIL_MODE` / `AI_EFFORT` with the documented
+defaults. `planThinking(model, effort)` returns `{ kind: "off" }`, the
+budget shape (`thinking.type: "enabled"` with `budget_tokens` 1024 / 4000 /
+6144), or the adaptive shape (`thinking.type: "adaptive"` +
+`output_config.effort`); the Opus 4.7 path streams via SSE and reassembles
+a final-message shape so the shared `findToolUseInput` / `parseAndValidate`
+parser works unchanged. `TonightScreen` lifts AI-result state via
+`onAiActiveChange` to hide the kind segment on swap and restore it on
+Clear; the search box shows a pending state ("Searching…", `disabled`)
+while the deterministic list stays visible underneath; an sr-only
+`aria-live` region announces pending / swap / empty / return; the controls
+carry ≥44px touch targets and a `focus-visible` ring.

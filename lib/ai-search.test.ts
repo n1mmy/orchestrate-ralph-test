@@ -1,11 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   AI_SEARCH_UNAVAILABLE,
+  EFFORT_BUDGET_TOKENS,
   MAX_RATIONALE_LENGTH,
   REQUEST_TIMEOUT_MS,
   buildSnapshot,
+  buildSystemPrompt,
   createAiSearchClient,
+  isAdaptiveModel,
   parseAndValidate,
+  planThinking,
+  resolveEffort,
+  resolveTailMode,
   type SnapshotLogEntry,
   type SnapshotOption,
   type SnapshotRejection,
@@ -460,7 +466,11 @@ describe("createAiSearchClient.search failure modes", () => {
           });
         }),
     );
-    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch, 10);
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      timeoutMs: 10,
+      model: "claude-sonnet-4-6",
+    });
     const result = await client.search(input);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -468,7 +478,10 @@ describe("createAiSearchClient.search failure modes", () => {
 
   it("collapses an HTTP 429 (rate limit) to AI_SEARCH_UNAVAILABLE with one call", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({ error: "rate limit" }, { status: 429 }));
-    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+    });
     const result = await client.search(input);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -476,7 +489,10 @@ describe("createAiSearchClient.search failure modes", () => {
 
   it("collapses an HTTP 500 (server error) to AI_SEARCH_UNAVAILABLE with one call", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({}, { status: 500 }));
-    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+    });
     const result = await client.search(input);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -484,7 +500,10 @@ describe("createAiSearchClient.search failure modes", () => {
 
   it("collapses a non-429 4xx (e.g. 400) to AI_SEARCH_UNAVAILABLE with one call", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({}, { status: 400 }));
-    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+    });
     const result = await client.search(input);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -494,7 +513,10 @@ describe("createAiSearchClient.search failure modes", () => {
     const fetchImpl = vi.fn(async () => {
       throw new TypeError("network down");
     });
-    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+    });
     const result = await client.search(input);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -506,7 +528,10 @@ describe("createAiSearchClient.search failure modes", () => {
     const fetchImpl = vi.fn(async () =>
       jsonResponse({ content: [{ type: "text", text: "I refuse to use the tool." }] }),
     );
-    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+    });
     const result = await client.search(input);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -518,7 +543,10 @@ describe("createAiSearchClient.search failure modes", () => {
         content: [{ type: "tool_use", name: "rank_options", input: { not_ranking: true } }],
       }),
     );
-    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+    });
     const result = await client.search(input);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -532,7 +560,10 @@ describe("createAiSearchClient.search failure modes", () => {
         ],
       }),
     );
-    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+    });
     const result = await client.search(input);
     expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -544,7 +575,10 @@ describe("createAiSearchClient.search failure modes", () => {
         content: [{ type: "tool_use", name: "rank_options", input: { ranking: [] } }],
       }),
     );
-    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+    });
     const result = await client.search(input);
     expect(result).toEqual({ ok: true, results: [] });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -562,9 +596,449 @@ describe("createAiSearchClient.search failure modes", () => {
         ],
       }),
     );
-    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+    });
     const result = await client.search(input);
     expect(result).toEqual({ ok: true, results: [{ optionId: ALICE_ID, reason: "habit fit" }] });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * `resolveTailMode` — the `AI_TAIL_MODE` env-var reader. `full` / `pithy` /
+ * `drop` are recognised; anything else (absent, empty, unrecognised) falls
+ * back to `pithy`, the shipping default. Case-insensitive so `PITHY` works.
+ */
+describe("resolveTailMode", () => {
+  it("defaults to pithy when AI_TAIL_MODE is unset", () => {
+    expect(resolveTailMode({})).toBe("pithy");
+  });
+
+  it("defaults to pithy when AI_TAIL_MODE is empty", () => {
+    expect(resolveTailMode({ AI_TAIL_MODE: "" })).toBe("pithy");
+  });
+
+  it("recognises the three modes", () => {
+    expect(resolveTailMode({ AI_TAIL_MODE: "full" })).toBe("full");
+    expect(resolveTailMode({ AI_TAIL_MODE: "pithy" })).toBe("pithy");
+    expect(resolveTailMode({ AI_TAIL_MODE: "drop" })).toBe("drop");
+  });
+
+  it("is case-insensitive and trims whitespace", () => {
+    expect(resolveTailMode({ AI_TAIL_MODE: "FULL" })).toBe("full");
+    expect(resolveTailMode({ AI_TAIL_MODE: "  Drop  " })).toBe("drop");
+  });
+
+  it("falls back to pithy for an unrecognised value", () => {
+    expect(resolveTailMode({ AI_TAIL_MODE: "extended" })).toBe("pithy");
+    expect(resolveTailMode({ AI_TAIL_MODE: "none" })).toBe("pithy");
+  });
+});
+
+/**
+ * `resolveEffort` — the `AI_EFFORT` env-var reader. `off` / `low` / `medium`
+ * / `high` are recognised; anything else (absent, empty, unrecognised) falls
+ * back to `low`, the shipping default. The bare-integer numeric escape hatch
+ * is a ticket-18 concern and not the job of this resolver.
+ */
+describe("resolveEffort", () => {
+  it("defaults to low when AI_EFFORT is unset", () => {
+    expect(resolveEffort({})).toBe("low");
+  });
+
+  it("recognises the four canonical levels", () => {
+    expect(resolveEffort({ AI_EFFORT: "off" })).toBe("off");
+    expect(resolveEffort({ AI_EFFORT: "low" })).toBe("low");
+    expect(resolveEffort({ AI_EFFORT: "medium" })).toBe("medium");
+    expect(resolveEffort({ AI_EFFORT: "high" })).toBe("high");
+  });
+
+  it("is case-insensitive", () => {
+    expect(resolveEffort({ AI_EFFORT: "HIGH" })).toBe("high");
+  });
+
+  it("falls back to low for an unrecognised value", () => {
+    expect(resolveEffort({ AI_EFFORT: "extreme" })).toBe("low");
+  });
+});
+
+/**
+ * `planThinking` — translates an `Effort` plus a model id into the request's
+ * `thinking` block (and `output_config`, for adaptive). The two API families
+ * take effort through different shapes; `off` is uniform.
+ */
+describe("planThinking", () => {
+  it("returns kind=off for effort='off' on any model", () => {
+    expect(planThinking("claude-sonnet-4-6", "off")).toEqual({ kind: "off" });
+    expect(planThinking("claude-opus-4-7", "off")).toEqual({ kind: "off" });
+  });
+
+  it("budget-API model maps effort to budget_tokens", () => {
+    expect(planThinking("claude-sonnet-4-6", "low")).toEqual({
+      kind: "budget",
+      thinking: { type: "enabled", budget_tokens: EFFORT_BUDGET_TOKENS.low },
+    });
+    expect(planThinking("claude-haiku-4-5", "medium")).toEqual({
+      kind: "budget",
+      thinking: { type: "enabled", budget_tokens: EFFORT_BUDGET_TOKENS.medium },
+    });
+    expect(planThinking("claude-sonnet-4-6", "high")).toEqual({
+      kind: "budget",
+      thinking: { type: "enabled", budget_tokens: EFFORT_BUDGET_TOKENS.high },
+    });
+  });
+
+  it("budget-token mapping matches the documented values: 1024 / 4000 / 6144", () => {
+    expect(EFFORT_BUDGET_TOKENS.low).toBe(1024);
+    expect(EFFORT_BUDGET_TOKENS.medium).toBe(4000);
+    expect(EFFORT_BUDGET_TOKENS.high).toBe(6144);
+  });
+
+  it("adaptive-API model (Opus 4.7) uses thinking.adaptive + output_config.effort", () => {
+    expect(planThinking("claude-opus-4-7", "low")).toEqual({
+      kind: "adaptive",
+      thinking: { type: "adaptive" },
+      output_config: { effort: "low" },
+    });
+    expect(planThinking("claude-opus-4-7", "high")).toEqual({
+      kind: "adaptive",
+      thinking: { type: "adaptive" },
+      output_config: { effort: "high" },
+    });
+  });
+
+  it("isAdaptiveModel only matches Opus 4.7 — earlier Opus generations are budget API", () => {
+    expect(isAdaptiveModel("claude-opus-4-7")).toBe(true);
+    expect(isAdaptiveModel("claude-opus-4-7-20260101")).toBe(true);
+    expect(isAdaptiveModel("claude-opus-4-5")).toBe(false);
+    expect(isAdaptiveModel("claude-opus-4-6")).toBe(false);
+    expect(isAdaptiveModel("claude-sonnet-4-6")).toBe(false);
+    expect(isAdaptiveModel("claude-haiku-4-5")).toBe(false);
+  });
+});
+
+/**
+ * `buildSystemPrompt` — the habit-reasoning prompt. The mode-independent
+ * core (cadence, day-of-week rhythm, streaks, drift; the explicit
+ * "do not just re-sort by recency"; the Rejections-block split; the
+ * `<household-text>` delimiter rule) is shared across all three tail modes.
+ * Only the open-query instruction swaps.
+ */
+describe("buildSystemPrompt", () => {
+  it("tells the model NOT to re-sort the Catalog by raw recency", () => {
+    const prompt = buildSystemPrompt({ tailMode: "pithy" });
+    expect(prompt).toMatch(/NOT to re-sort the Catalog by raw recency|not to re-sort the Catalog by raw recency/i);
+    expect(prompt).toMatch(/deterministic ranking already/i);
+  });
+
+  it("calls out cadence, day-of-week rhythm, streaks, and drift as the patterns to find", () => {
+    const prompt = buildSystemPrompt({ tailMode: "pithy" });
+    expect(prompt).toMatch(/cadence/i);
+    expect(prompt).toMatch(/day-of-week/i);
+    expect(prompt).toMatch(/streak/i);
+    expect(prompt).toMatch(/drift/i);
+  });
+
+  it("explains the Rejections block — today's-rejected vs not-today's, standing vs one-off", () => {
+    const prompt = buildSystemPrompt({ tailMode: "pithy" });
+    expect(prompt).toMatch(/Rejection/);
+    expect(prompt).toMatch(/today/i);
+    expect(prompt).toMatch(/standing|one-off/i);
+  });
+
+  it("explains the <household-text> delimiter rule", () => {
+    const prompt = buildSystemPrompt({ tailMode: "pithy" });
+    expect(prompt).toContain("<household-text>");
+    expect(prompt).toMatch(/data only|never as instructions/i);
+  });
+
+  it("swaps only the open-query instruction by mode — the habit-reasoning core is mode-independent", () => {
+    const full = buildSystemPrompt({ tailMode: "full" });
+    const pithy = buildSystemPrompt({ tailMode: "pithy" });
+    const drop = buildSystemPrompt({ tailMode: "drop" });
+
+    // Every mode mentions cadence and the delimiter rule — the shared core.
+    for (const p of [full, pithy, drop]) {
+      expect(p).toMatch(/cadence/i);
+      expect(p).toContain("<household-text>");
+    }
+
+    // Pithy uniquely tells the model to use an empty-string rationale for
+    // an obviously bad pick.
+    expect(pithy).toMatch(/EMPTY STRING|empty string/i);
+    expect(full).not.toMatch(/empty string/i);
+    expect(drop).not.toMatch(/empty string/i);
+
+    // Drop uniquely tells the model to omit the clearly-bad picks.
+    expect(drop).toMatch(/OMIT|omit/i);
+
+    // Full uniquely tells the model every row gets a rationale.
+    expect(full).toMatch(/EVERY row|every row/i);
+  });
+
+  it("defaults tailMode to pithy when the option is omitted", () => {
+    expect(buildSystemPrompt()).toBe(buildSystemPrompt({ tailMode: "pithy" }));
+  });
+});
+
+/**
+ * The adaptive-API (Opus 4.7) path. The request shape carries
+ * `thinking: { type: "adaptive" }` + `output_config: { effort }` and
+ * `stream: true`; the response is read as an SSE event stream and
+ * reassembled into the same final-message shape the budget path produces,
+ * so `findToolUseInput` and `parseAndValidate` work unchanged.
+ */
+describe("createAiSearchClient — Opus 4.7 adaptive path", () => {
+  const input = {
+    options: [
+      {
+        id: ALICE_ID,
+        name: "Alice's Pizza",
+        kind: "restaurant" as const,
+        tags: [],
+        notes: null,
+      },
+    ],
+    log: [],
+    rejections: [],
+    today: "2026-05-20",
+    query: "anything",
+  };
+
+  /**
+   * Build an SSE response body from an ordered list of events. Anthropic
+   * Messages SSE uses `event: <type>` + `data: <json>` + blank line per
+   * event; we mirror that shape so the parser sees the real wire format.
+   */
+  function sseResponse(events: Array<Record<string, unknown>>): Response {
+    const frames = events
+      .map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+      .join("");
+    return new Response(frames, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }
+
+  it("sends thinking.type=adaptive + output_config.effort + stream:true on the request", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      return sseResponse([
+        { type: "message_start", message: { id: "msg_1", content: [] } },
+        {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "tool_use", name: "rank_options", input: {} },
+        },
+        {
+          type: "content_block_delta",
+          index: 0,
+          delta: {
+            type: "input_json_delta",
+            partial_json: '{"ranking":[{"id":1,"reason":"habit fit"}]}',
+          },
+        },
+        { type: "content_block_stop", index: 0 },
+        { type: "message_stop" },
+      ]);
+    });
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-opus-4-7",
+      effort: "low",
+    });
+    const result = await client.search(input);
+
+    // The result still parses through the shared parser.
+    expect(result).toEqual({
+      ok: true,
+      results: [{ optionId: ALICE_ID, reason: "habit fit" }],
+    });
+
+    // The request body carries the adaptive shape: stream:true, thinking
+    // adaptive, output_config.effort, and a higher max_tokens than the
+    // budget path uses.
+    expect(calls).toHaveLength(1);
+    const sentBody = JSON.parse(calls[0]!.init!.body as string);
+    expect(sentBody.stream).toBe(true);
+    expect(sentBody.thinking).toEqual({ type: "adaptive" });
+    expect(sentBody.output_config).toEqual({ effort: "low" });
+    expect(sentBody.max_tokens).toBeGreaterThan(4096);
+    expect(sentBody.model).toBe("claude-opus-4-7");
+  });
+
+  it("budget-API model (Sonnet) sends thinking.type=enabled with budget_tokens and no stream flag", async () => {
+    const calls: Array<{ init?: RequestInit }> = [];
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      calls.push({ init });
+      return new Response(
+        JSON.stringify({
+          content: [
+            {
+              type: "tool_use",
+              name: "rank_options",
+              input: { ranking: [{ id: 1, reason: "ok" }] },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+      effort: "medium",
+    });
+    const result = await client.search(input);
+    expect(result).toEqual({
+      ok: true,
+      results: [{ optionId: ALICE_ID, reason: "ok" }],
+    });
+    const sentBody = JSON.parse(calls[0]!.init!.body as string);
+    expect(sentBody.stream).toBeUndefined();
+    expect(sentBody.thinking).toEqual({
+      type: "enabled",
+      budget_tokens: EFFORT_BUDGET_TOKENS.medium,
+    });
+    expect(sentBody.output_config).toBeUndefined();
+  });
+
+  it("effort=off omits the thinking block on both API families", async () => {
+    const calls: Array<{ init?: RequestInit }> = [];
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      calls.push({ init });
+      return new Response(
+        JSON.stringify({
+          content: [
+            {
+              type: "tool_use",
+              name: "rank_options",
+              input: { ranking: [{ id: 1, reason: "ok" }] },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+      effort: "off",
+    });
+    await client.search(input);
+    const sentBody = JSON.parse(calls[0]!.init!.body as string);
+    expect(sentBody.thinking).toBeUndefined();
+    expect(sentBody.output_config).toBeUndefined();
+  });
+
+  it("reassembles a streamed Opus response into the final-message tool_use shape", async () => {
+    // The tool input arrives across multiple input_json_delta frames — the
+    // parser must glue them back together before parsing the JSON.
+    const fetchImpl = vi.fn(async () =>
+      sseResponse([
+        { type: "message_start", message: { id: "msg_1", content: [] } },
+        {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "thinking", thinking: "" },
+        },
+        {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "thinking_delta", thinking: "thinking aloud..." },
+        },
+        { type: "content_block_stop", index: 0 },
+        {
+          type: "content_block_start",
+          index: 1,
+          content_block: { type: "tool_use", name: "rank_options", input: {} },
+        },
+        {
+          type: "content_block_delta",
+          index: 1,
+          delta: { type: "input_json_delta", partial_json: '{"ranking":[' },
+        },
+        {
+          type: "content_block_delta",
+          index: 1,
+          delta: {
+            type: "input_json_delta",
+            partial_json: '{"id":1,"reason":"streamed habit fit"}',
+          },
+        },
+        {
+          type: "content_block_delta",
+          index: 1,
+          delta: { type: "input_json_delta", partial_json: "]}" },
+        },
+        { type: "content_block_stop", index: 1 },
+        { type: "message_stop" },
+      ]),
+    );
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-opus-4-7",
+    });
+    const result = await client.search(input);
+    expect(result).toEqual({
+      ok: true,
+      results: [{ optionId: ALICE_ID, reason: "streamed habit fit" }],
+    });
+  });
+
+  it("a streamed response with no tool_use block collapses to AI_SEARCH_UNAVAILABLE", async () => {
+    const fetchImpl = vi.fn(async () =>
+      sseResponse([
+        { type: "message_start", message: { id: "msg_1", content: [] } },
+        {
+          type: "content_block_start",
+          index: 0,
+          content_block: { type: "text", text: "" },
+        },
+        {
+          type: "content_block_delta",
+          index: 0,
+          delta: { type: "text_delta", text: "I refused to use the tool." },
+        },
+        { type: "content_block_stop", index: 0 },
+        { type: "message_stop" },
+      ]),
+    );
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-opus-4-7",
+    });
+    const result = await client.search(input);
+    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
+  });
+
+  it("the resolved tailMode flows through to buildSystemPrompt in the request body", async () => {
+    const calls: Array<{ init?: RequestInit }> = [];
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      calls.push({ init });
+      return new Response(
+        JSON.stringify({
+          content: [
+            {
+              type: "tool_use",
+              name: "rank_options",
+              input: { ranking: [{ id: 1, reason: "ok" }] },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+      tailMode: "drop",
+    });
+    await client.search(input);
+    const sentBody = JSON.parse(calls[0]!.init!.body as string);
+    expect(sentBody.system).toMatch(/OMIT|omit/);
   });
 });

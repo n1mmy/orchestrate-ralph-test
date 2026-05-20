@@ -116,7 +116,13 @@ export function TonightScreen({
       return next;
     });
 
-  const showKindSegment = pickerRows.length > 0;
+  // **AI-mode polish.** While an AI result is shown, the filter zone — the
+  // All/Home/Restaurant kind segment in the header and the tri-state Tag
+  // filter chip strip inside the picker — is hidden so the query is the
+  // single ranking authority. The Picker reports AI-result state up here
+  // through `onAiActiveChange`; clearing the search restores both.
+  const [aiActive, setAiActive] = useState(false);
+  const showKindSegment = pickerRows.length > 0 && !aiActive;
 
   return (
     <>
@@ -154,7 +160,11 @@ export function TonightScreen({
           </>
         ) : null}
 
-        <AiSearchBox pickerRows={pickerRows} onRejected={announceRejected}>
+        <AiSearchBox
+          pickerRows={pickerRows}
+          onRejected={announceRejected}
+          onAiActiveChange={setAiActive}
+        >
           {pickerRows.length === 0 ? (
             allRejected ? (
               <p className="mt-sm text-body text-muted">
@@ -211,10 +221,20 @@ export function TonightScreen({
 function AiSearchBox({
   pickerRows,
   onRejected,
+  onAiActiveChange,
   children,
 }: {
   pickerRows: TonightRowData[];
   onRejected: (optionName: string) => void;
+  /**
+   * Hoist AI-result state up to `TonightScreen` so the header can drop the
+   * All/Home/Restaurant kind segment while an AI result is shown. Fired
+   * with `true` when an AI result swaps in and `false` when Clear restores
+   * the deterministic list (including from an empty result). Pending state
+   * does NOT flip this flag — the deterministic list stays visible
+   * underneath until the result lands, so the filter zone stays with it.
+   */
+  onAiActiveChange?: (active: boolean) => void;
   children: React.ReactNode;
 }) {
   const [query, setQuery] = useState("");
@@ -237,6 +257,11 @@ function AiSearchBox({
       }
       setError(null);
       setResults(result.results);
+      // Notify the parent the AI result has swapped in — the kind segment
+      // in the header drops away to leave the query as the single ranking
+      // authority. Fired right at the same setState site so the parent's
+      // re-render lands in the same React batch as the swap itself.
+      onAiActiveChange?.(true);
     });
   }
 
@@ -244,6 +269,9 @@ function AiSearchBox({
     setResults(null);
     setError(null);
     setQuery("");
+    // Clearing the search restores both the deterministic list and the
+    // filter zone the header dropped on the swap.
+    onAiActiveChange?.(false);
   }
 
   // Map AI result UUIDs back to the corresponding picker rows so the AI
@@ -268,6 +296,41 @@ function AiSearchBox({
       .filter((x): x is { row: TonightRowData; reason: string } => x !== null);
   }, [results, rowsByOptionId]);
 
+  // The search-status announcement for the visually-hidden polite live
+  // region under the form — pending while a search is in flight, a swap
+  // announcement when an AI result arrives, an empty-result announcement,
+  // and an announcement when Clear (or an empty-result Clear) restores the
+  // deterministic list. The Failure case has its own visible live region
+  // below; this sr-only region intentionally does not duplicate that
+  // string, so a screen reader hears the error once.
+  //
+  // `clearedAfterSwap` tracks whether the user has at least once seen an AI
+  // result land — only then is "Showing the deterministic list" a real
+  // transition worth announcing on the way back to `null`.
+  const [hasSwapped, setHasSwapped] = useState(false);
+  useEffect(() => {
+    if (results !== null) setHasSwapped(true);
+  }, [results]);
+  const status = pending
+    ? "Searching…"
+    : results === null
+      ? hasSwapped
+        ? "Showing the deterministic list."
+        : ""
+      : results.length === 0
+        ? "No Options fit that search."
+        : `AI search results loaded — ${results.length} ${
+            results.length === 1 ? "option" : "options"
+          }.`;
+
+  // Focus styles consistent across the three controls — visible focus ring
+  // anchored on the `:focus-visible` pseudo-class so a mouse user does not
+  // see a ring on every click, but a keyboard user always does. The ring
+  // borrows the existing `action` accent so it threads through every theme
+  // alongside the Pick button.
+  const focusRing =
+    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action";
+
   return (
     <>
       <form
@@ -283,30 +346,44 @@ function AiSearchBox({
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search with AI…"
+          placeholder={pending ? "Searching…" : "Search with AI…"}
           aria-label="AI search query"
-          className="min-h-[44px] flex-1 rounded-input border border-line bg-surface px-sm py-xs text-body text-ink"
+          aria-busy={pending}
+          disabled={pending}
+          className={`min-h-[44px] flex-1 rounded-input border border-line bg-surface px-sm py-xs text-body text-ink disabled:opacity-80 ${focusRing}`}
         />
         <button
           type="submit"
           disabled={pending}
-          className="min-h-[44px] rounded-control bg-action px-md py-xs text-meta text-action-ink hover:bg-action-hover disabled:opacity-80"
+          className={`min-h-[44px] min-w-[44px] rounded-control bg-action px-md py-xs text-meta text-action-ink hover:bg-action-hover disabled:opacity-80 ${focusRing}`}
         >
-          Search
+          {pending ? "Searching…" : "Search"}
         </button>
         {aiRows !== null || error !== null ? (
           <button
             type="button"
             onClick={clear}
-            className="min-h-[44px] rounded-control border border-line bg-surface px-md py-xs text-meta text-ink hover:bg-raised"
+            className={`min-h-[44px] min-w-[44px] rounded-control border border-line bg-surface px-md py-xs text-meta text-ink hover:bg-raised disabled:opacity-80 ${focusRing}`}
           >
             Clear
           </button>
         ) : null}
       </form>
-      {/* The error lives in a polite `aria-live` region under the search box so
-       * a failed search is announced to assistive tech; it persists across
-       * subsequent submits and clears only on Clear or a successful search. */}
+
+      {/* Visually-hidden polite live region announcing every search state
+       * transition — pending, the swap to the AI result, an empty result,
+       * the return to the deterministic list, and a Failure. Held inside an
+       * `sr-only` container so the announcement is read but no visual
+       * artefact lands in the layout. */}
+      <p className="sr-only" role="status" aria-live="polite">
+        {status}
+      </p>
+
+      {/* The visible error sits in its own polite live region under the
+       * search box so a Household member without assistive tech still sees
+       * "Search unavailable — try again" when a search Failure lands. The
+       * error persists across subsequent submits and clears only on Clear
+       * or a successful search. */}
       <div role="status" aria-live="polite" className="mt-sm">
         {error ? (
           <p className="text-meta text-danger">{error}</p>
@@ -314,6 +391,10 @@ function AiSearchBox({
       </div>
 
       {aiRows === null ? (
+        // No AI result yet — the deterministic list stays visible
+        // underneath whether or not a search is in flight, so a slow
+        // response never blanks the screen. The in-flight search box above
+        // is already disabled, so the Household cannot stack queries.
         children
       ) : aiRows.length === 0 ? (
         // The model legitimately returned zero Options (a real answer, not a
