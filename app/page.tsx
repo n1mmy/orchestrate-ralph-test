@@ -91,6 +91,7 @@ export default async function HomePage() {
       <TonightScreen
         tonightsDinner={tonightsDinner}
         pickerRows={visiblePicker}
+        rejectedTonight={todayRejections}
         allRejected={allRejected}
       />
     </main>

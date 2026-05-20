@@ -1,6 +1,6 @@
 # 20 — Rejected tonight disclosure
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -23,18 +23,22 @@ Expanded, the disclosure renders a `<ul>` of today's Rejections — for each, th
 
 ## Acceptance criteria
 
-- [ ] A `RejectedTonightDisclosure` rendered at the bottom of `app/tonight-screen.tsx`, only when today has Rejections, collapsed by default
-- [ ] The heading is a button carrying `aria-expanded` and the literal label `Rejected tonight (N)` with the count of today's Rejections
-- [ ] Expanded, it lists today's Rejections with the Option name and the reason on a muted line when one was given
-- [ ] The disclosure list is the `rejectedTonight` (`TodayRejection[]`) prop passed from `app/page.tsx` — no new query is added
-- [ ] Each entry has a "Bring back" button calling the `authedAction`-wrapped `deleteRejection(rejectionId)` from `app/rejection-actions.ts` — the same shared delete action, no separate `bringBackRejection`
-- [ ] "Bring back" deletes the `rejections` row entirely and returns the Option to tonight's list immediately on revalidation
-- [ ] Only today's Rejections appear in the disclosure
-- [ ] The disclosure renders the same in picker mode and in decided mode's reopened picker
-- [ ] The disclosure toggle and every "Bring back" control are keyboard-operable with visible focus and adequate touch targets, and disabled while a delete is in flight
-- [ ] `deleteRejection` is `authedAction`-wrapped and rejects an unauthenticated caller
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] A `RejectedTonightDisclosure` rendered at the bottom of `app/tonight-screen.tsx`, only when today has Rejections, collapsed by default
+- [x] The heading is a button carrying `aria-expanded` and the literal label `Rejected tonight (N)` with the count of today's Rejections
+- [x] Expanded, it lists today's Rejections with the Option name and the reason on a muted line when one was given
+- [x] The disclosure list is the `rejectedTonight` (`TodayRejection[]`) prop passed from `app/page.tsx` — no new query is added
+- [x] Each entry has a "Bring back" button calling the `authedAction`-wrapped `deleteRejection(rejectionId)` from `app/rejection-actions.ts` — the same shared delete action, no separate `bringBackRejection`
+- [x] "Bring back" deletes the `rejections` row entirely and returns the Option to tonight's list immediately on revalidation
+- [x] Only today's Rejections appear in the disclosure
+- [x] The disclosure renders the same in picker mode and in decided mode's reopened picker
+- [x] The disclosure toggle and every "Bring back" control are keyboard-operable with visible focus and adequate touch targets, and disabled while a delete is in flight
+- [x] `deleteRejection` is `authedAction`-wrapped and rejects an unauthenticated caller
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
 
 ## Blocked by
 
 - 19 — Reject and suppress
+
+## Comments
+
+Added `deleteRejection` (`authedAction`-wrapped, thin delete + same `/`, `/log`, `/catalog/[id]` revalidations as `rejectOption`) to `app/rejection-actions.ts`; added a screen-level `RejectedTonightDisclosure` (collapsed by default, `aria-expanded` heading button labeled `Rejected tonight (N)`, `<ul>` of today's Rejections with muted reason lines and a "Bring back" button driven by `useTransition`) to `app/tonight-screen.tsx` and wired `app/page.tsx` to pass `todayRejections` through. Unit tests cover the disclosure's collapse / expand / delete / error paths, plus an auth-gate test asserting both rejection actions redirect unauthenticated callers to `/login`. Full gate (typecheck / lint / test / build) green.
