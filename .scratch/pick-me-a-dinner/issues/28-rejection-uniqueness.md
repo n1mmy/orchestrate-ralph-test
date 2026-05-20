@@ -1,6 +1,6 @@
 # 28 — Rejection uniqueness: UNIQUE(option_id, rejected_on)
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -25,14 +25,14 @@ The constraint produces a Postgres `23505` unique-violation on a colliding inser
 
 ## Acceptance criteria
 
-- [ ] `db/schema.ts` declares `unique("rejections_option_rejected_on_unique").on(t.optionId, t.rejectedOn)` in the `rejections` table callback, alongside the existing `rejections_rejected_on_idx` index
-- [ ] `unique` is imported from `drizzle-orm/pg-core`
-- [ ] The exported `Rejection` type (`typeof rejections.$inferSelect`) is unchanged
-- [ ] A new Drizzle migration (`drizzle/0003_*.sql`) holds the single `ALTER TABLE "rejections" ADD CONSTRAINT "rejections_option_rejected_on_unique" UNIQUE("option_id","rejected_on");` statement, following `0002`
-- [ ] `drizzle/meta/` is regenerated so the migration journal stays consistent
-- [ ] The migration applies cleanly against an existing `rejections` table — no data backfill or de-duplication needed
-- [ ] The `rejections` table doc comment explains the constraint is required because manual dated entry (ADR-0008) allows the same date to be revisited, superseding ADR-0006
-- [ ] No mapping of the `23505` error to an inline message is added here — that is ticket 31's work
+- [x] `db/schema.ts` declares `unique("rejections_option_rejected_on_unique").on(t.optionId, t.rejectedOn)` in the `rejections` table callback, alongside the existing `rejections_rejected_on_idx` index
+- [x] `unique` is imported from `drizzle-orm/pg-core`
+- [x] The exported `Rejection` type (`typeof rejections.$inferSelect`) is unchanged
+- [x] A new Drizzle migration (`drizzle/0003_*.sql`) holds the single `ALTER TABLE "rejections" ADD CONSTRAINT "rejections_option_rejected_on_unique" UNIQUE("option_id","rejected_on");` statement, following `0002`
+- [x] `drizzle/meta/` is regenerated so the migration journal stays consistent
+- [x] The migration applies cleanly against an existing `rejections` table — no data backfill or de-duplication needed
+- [x] The `rejections` table doc comment explains the constraint is required because manual dated entry (ADR-0008) allows the same date to be revisited, superseding ADR-0006
+- [x] No mapping of the `23505` error to an inline message is added here — that is ticket 31's work
 
 ## Blocked by
 
