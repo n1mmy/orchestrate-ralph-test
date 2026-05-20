@@ -1,4 +1,8 @@
-import { getActiveCatalog, getAllTagNames } from "@/db/queries";
+import {
+  getActiveCatalog,
+  getAllTagNames,
+  getArchivedOptions,
+} from "@/db/queries";
 import { placesEnabled } from "@/lib/places";
 import { CatalogScreen } from "./catalog-screen";
 
@@ -15,13 +19,15 @@ import { CatalogScreen } from "./catalog-screen";
 export const dynamic = "force-dynamic";
 
 export default async function CatalogPage() {
-  const [catalog, tagSuggestions] = await Promise.all([
+  const [catalog, archived, tagSuggestions] = await Promise.all([
     getActiveCatalog(),
+    getArchivedOptions(),
     getAllTagNames(),
   ]);
   return (
     <CatalogScreen
       catalog={catalog}
+      archived={archived}
       tagSuggestions={tagSuggestions}
       placesEnabled={placesEnabled()}
     />

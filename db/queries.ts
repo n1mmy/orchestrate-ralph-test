@@ -30,13 +30,40 @@ export type CatalogOption = {
  * The Catalog as the Catalog screen renders it — active Options only
  * (`active = true`), ordered by name, split by kind. Archived Options are
  * deliberately excluded from the default Catalog list per CONTEXT.md's
- * Archived definition; a future Archived screen (ticket 26) loads them
- * separately.
+ * Archived definition; the Catalog's "Archived (N)" disclosure (ticket 26)
+ * loads them separately via `getArchivedOptions`.
  */
 export type ActiveCatalog = {
   home: CatalogOption[];
   restaurants: CatalogOption[];
 };
+
+/**
+ * One Archived Option as the Catalog's "Archived (N)" disclosure links to its
+ * detail page (ticket 26). Narrowed to just `{ id, name }` — the disclosure
+ * renders a `next/link` to `/catalog/[id]` and shows the Option's name; no
+ * other field is needed at that surface.
+ */
+export type ArchivedOption = {
+  id: string;
+  name: string;
+};
+
+/**
+ * The Archived Catalog — `active = false` Options ordered by name. Drives the
+ * Catalog's collapsed "Archived (N)" disclosure, which links each entry to
+ * its `/catalog/[id]` detail page. Kept distinct from `getActiveCatalog` so
+ * the active list reads exactly as before and Archived Options stay invisible
+ * outside this one disclosure.
+ */
+export async function getArchivedOptions(): Promise<ArchivedOption[]> {
+  const rows = await db
+    .select({ id: options.id, name: options.name })
+    .from(options)
+    .where(eq(options.active, false))
+    .orderBy(asc(options.name));
+  return rows;
+}
 
 /**
  * Every Tag name in the Catalog, alphabetical. Feeds the `TagInput`

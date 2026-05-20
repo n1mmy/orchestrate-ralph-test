@@ -1,5 +1,6 @@
+import { ArchivedDisclosure } from "./archived-disclosure";
 import { OptionSection } from "./option-section";
-import type { ActiveCatalog } from "@/db/queries";
+import type { ActiveCatalog, ArchivedOption } from "@/db/queries";
 
 /**
  * The Catalog screen. Renders the two kinds as two `OptionSection`s — Home
@@ -15,13 +16,19 @@ import type { ActiveCatalog } from "@/db/queries";
  * The `placesEnabled` flag gates the Restaurant form's `PlacesSearchBox` —
  * only the Restaurants section uses it; Home meals have no Places
  * integration.
+ *
+ * `archived` feeds the **"Archived (N)" disclosure** pinned at the bottom of
+ * the screen (ticket 26). Rendered only when something is Archived, so the
+ * active list above is unchanged when there is nothing to disclose.
  */
 export function CatalogScreen({
   catalog,
+  archived = [],
   tagSuggestions,
   placesEnabled = false,
 }: {
   catalog: ActiveCatalog;
+  archived?: ArchivedOption[];
   tagSuggestions: string[];
   placesEnabled?: boolean;
 }) {
@@ -50,6 +57,7 @@ export function CatalogScreen({
         tagSuggestions={tagSuggestions}
         placesEnabled={placesEnabled}
       />
+      {archived.length > 0 ? <ArchivedDisclosure archived={archived} /> : null}
     </main>
   );
 }

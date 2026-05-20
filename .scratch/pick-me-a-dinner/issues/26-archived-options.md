@@ -1,6 +1,6 @@
 # 26 — Archived Options: detail page, Un-archive, and Catalog disclosure
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -62,15 +62,15 @@ entries do not move its Tag chips, so a Tag with no active carrier caps at
 
 ## Acceptance criteria
 
-- [ ] An Archived Option's detail page renders its header, Recency, Actions, Details, and History sections normally
-- [ ] `rankOption` returns `score: null` for an Archived Option (target absent from `activeOptions`) while still computing `recencyDays`, `neverEaten`, and the per-Tag chips
-- [ ] The "Recency" section's `RowChips` render for an Archived Option from those still-computed fields
-- [ ] `OptionControls`' Archive control is an Archive / Un-archive toggle; Un-archive runs in one tap and keeps the member on the page
-- [ ] `unarchiveOption(optionId)` is added to `app/catalog/actions.ts` — `authedAction`-wrapped, sets `active = true`, revalidates `/catalog` and `/catalog/[id]`
-- [ ] `app/catalog/catalog-screen.tsx` has a collapsed `Archived (N)` disclosure listing Archived Options as links to their detail pages, rendered only when something is Archived
-- [ ] `getArchivedOptions()` returns `active = false` Options as `{ id, name }` ordered by name; the active Catalog list is unchanged
-- [ ] `lib/ranking.test.ts` covers the Archived case — `score: null`, recency still computed from `targetLog`, only active Tag carriers count
-- [ ] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
+- [x] An Archived Option's detail page renders its header, Recency, Actions, Details, and History sections normally
+- [x] `rankOption` returns `score: null` for an Archived Option (target absent from `activeOptions`) while still computing `recencyDays`, `neverEaten`, and the per-Tag chips
+- [x] The "Recency" section's `RowChips` render for an Archived Option from those still-computed fields
+- [x] `OptionControls`' Archive control is an Archive / Un-archive toggle; Un-archive runs in one tap and keeps the member on the page
+- [x] `unarchiveOption(optionId)` is added to `app/catalog/actions.ts` — `authedAction`-wrapped, sets `active = true`, revalidates `/catalog` and `/catalog/[id]`
+- [x] `app/catalog/catalog-screen.tsx` has a collapsed `Archived (N)` disclosure listing Archived Options as links to their detail pages, rendered only when something is Archived
+- [x] `getArchivedOptions()` returns `active = false` Options as `{ id, name }` ordered by name; the active Catalog list is unchanged
+- [x] `lib/ranking.test.ts` covers the Archived case — `score: null`, recency still computed from `targetLog`, only active Tag carriers count
+- [x] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
 
 ## Blocked by
 
