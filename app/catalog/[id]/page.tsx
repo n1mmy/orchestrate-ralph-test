@@ -3,11 +3,13 @@ import {
   getAllTagNames,
   getLogOptionChoices,
   getOptionById,
+  getOptionChoices,
   getOptionLog,
   getOptionLogEntries,
   getOptionRejections,
   getTonightData,
   type LogOptionChoice,
+  type OptionChoice,
 } from "@/db/queries";
 import { today as todaySqlDate, epochDayFromSqlDate } from "@/lib/local-day";
 import { placesEnabled } from "@/lib/places";
@@ -66,7 +68,8 @@ export default async function OptionDetailPage({
     tonightData,
     optionLogEntries,
     optionRejections,
-    optionChoices,
+    logOptionChoices,
+    rejectionOptionChoices,
     tagSuggestions,
   ] = await Promise.all([
     getOptionById(id),
@@ -75,6 +78,7 @@ export default async function OptionDetailPage({
     getOptionLogEntries(id),
     getOptionRejections(id),
     getLogOptionChoices(),
+    getOptionChoices(),
     getAllTagNames(),
   ]);
 
@@ -196,7 +200,8 @@ export default async function OptionDetailPage({
       <HistorySection
         entries={optionLogEntries}
         rejections={optionRejections}
-        optionChoices={optionChoices}
+        logOptionChoices={logOptionChoices}
+        rejectionOptionChoices={rejectionOptionChoices}
         todaySql={todaySql}
       />
     </main>
@@ -226,12 +231,14 @@ export default async function OptionDetailPage({
 function HistorySection({
   entries,
   rejections,
-  optionChoices,
+  logOptionChoices,
+  rejectionOptionChoices,
   todaySql,
 }: {
   entries: Awaited<ReturnType<typeof getOptionLogEntries>>;
   rejections: Awaited<ReturnType<typeof getOptionRejections>>;
-  optionChoices: LogOptionChoice[];
+  logOptionChoices: LogOptionChoice[];
+  rejectionOptionChoices: OptionChoice[];
   todaySql: string;
 }) {
   const { upcoming, history } = groupByDay({
@@ -263,14 +270,14 @@ function HistorySection({
                   <LogEntryRow
                     key={entry.id}
                     entry={entry}
-                    optionChoices={optionChoices}
+                    optionChoices={logOptionChoices}
                   />
                 ))}
                 {day.rejections.map((rejection) => (
                   <RejectionRow
                     key={rejection.id}
                     rejection={rejection}
-                    optionChoices={optionChoices}
+                    optionChoices={rejectionOptionChoices}
                   />
                 ))}
               </ul>

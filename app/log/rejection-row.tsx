@@ -52,7 +52,7 @@ export function RejectionRow({
   optionChoices,
 }: {
   rejection: LogRejectionRow;
-  optionChoices: LogOptionChoice[];
+  optionChoices: RejectionOptionChoice[];
 }) {
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState<Confirm>("none");
