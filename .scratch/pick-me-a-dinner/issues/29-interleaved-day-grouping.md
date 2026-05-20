@@ -1,6 +1,6 @@
 # 29 — Interleaved day grouping: groupByDay over Log entries and Rejections
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -25,18 +25,22 @@ Extend `lib/dinner-grouping.test.ts` with full unit coverage for `groupByDay`, e
 
 ## Acceptance criteria
 
-- [ ] `lib/dinner-grouping.ts` exports a `DayRecord<E, R>` type with `date: string`, `entries: E[]`, and `rejections: R[]`, generic over `E extends { eatenOn: string }` and `R extends { rejectedOn: string }`
-- [ ] `groupByDay(entries, rejections, today)` returns `{ upcoming: DayRecord[]; history: DayRecord[] }`
-- [ ] A Log entry and a Rejection sharing a date converge on one `DayRecord`; a date with only Rejections still forms a record
-- [ ] Entries and Rejections keep the caller's input order within a record
-- [ ] The Upcoming/History split is exact at the today boundary — `date > today` is Upcoming, `date <= today` is History
-- [ ] Upcoming is returned soonest-first; History is returned newest-first
-- [ ] The module stays pure — no React, no DB import; it reads only `eatenOn` / `rejectedOn`
-- [ ] `groupByDate`, `splitDinners`, `Dinner<T>`, and `formatDinnerDate` are still exported and unchanged
-- [ ] `lib/dinner-grouping.test.ts` covers `groupByDay` with hand-built fixtures: same-date interleave, Rejection-only record, exact today-boundary split, ordering, input-order preservation, empty input
+- [x] `lib/dinner-grouping.ts` exports a `DayRecord<E, R>` type with `date: string`, `entries: E[]`, and `rejections: R[]`, generic over `E extends { eatenOn: string }` and `R extends { rejectedOn: string }`
+- [x] `groupByDay(entries, rejections, today)` returns `{ upcoming: DayRecord[]; history: DayRecord[] }`
+- [x] A Log entry and a Rejection sharing a date converge on one `DayRecord`; a date with only Rejections still forms a record
+- [x] Entries and Rejections keep the caller's input order within a record
+- [x] The Upcoming/History split is exact at the today boundary — `date > today` is Upcoming, `date <= today` is History
+- [x] Upcoming is returned soonest-first; History is returned newest-first
+- [x] The module stays pure — no React, no DB import; it reads only `eatenOn` / `rejectedOn`
+- [x] `groupByDate`, `splitDinners`, `Dinner<T>`, and `formatDinnerDate` are still exported and unchanged
+- [x] `lib/dinner-grouping.test.ts` covers `groupByDay` with hand-built fixtures: same-date interleave, Rejection-only record, exact today-boundary split, ordering, input-order preservation, empty input
 
 ## Blocked by
 
 - 23 — Option detail page: merged History section + dinner-grouping module
   (extends the `lib/dinner-grouping.ts` module introduced there; the
   `UNIQUE` constraint of ticket 28 has no bearing on this pure module)
+
+## Comments
+
+Already shipped in issue 23's PR — `lib/dinner-grouping.ts` already exports `DayRecord<E, R>` and `groupByDay` with the exact contract this ticket specifies (Map-keyed buckets, today-boundary split, soonest-first upcoming / newest-first history, input order preserved), and `lib/dinner-grouping.test.ts` already covers all six required scenarios. Gate green; transitioning to done without code changes.
