@@ -1,6 +1,6 @@
 # 13 — Remove a pick from Tonight's dinner
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -23,15 +23,19 @@ The server actions need no new tests: `deleteLogEntry` is already covered by the
 
 ## Acceptance criteria
 
-- [ ] Each decided-block row has an inline "Remove" control on the row's right edge, beside the Option name
-- [ ] "Remove" arms an inline confirm on first tap, showing a confirming "Remove" plus a "Cancel"; "Cancel" disarms it
-- [ ] Confirming "Remove" deletes today's Log entry for that Option, identified by the `entryId` on its `TonightsDinnerEntry`
-- [ ] After a Remove the Option is gone from Tonight's dinner and reappears in the picker (the server recomputes `splitTonight` on revalidation)
-- [ ] Removing the last Option in Tonight's dinner drops the screen back to picker mode with no special-casing
-- [ ] Removal reuses the existing `deleteLogEntry` server action — no new server action is introduced
-- [ ] "Remove" is keyboard-operable with visible focus and meets the 44×44px touch-target minimum
+- [x] Each decided-block row has an inline "Remove" control on the row's right edge, beside the Option name
+- [x] "Remove" arms an inline confirm on first tap, showing a confirming "Remove" plus a "Cancel"; "Cancel" disarms it
+- [x] Confirming "Remove" deletes today's Log entry for that Option, identified by the `entryId` on its `TonightsDinnerEntry`
+- [x] After a Remove the Option is gone from Tonight's dinner and reappears in the picker (the server recomputes `splitTonight` on revalidation)
+- [x] Removing the last Option in Tonight's dinner drops the screen back to picker mode with no special-casing
+- [x] Removal reuses the existing `deleteLogEntry` server action — no new server action is introduced
+- [x] "Remove" is keyboard-operable with visible focus and meets the 44×44px touch-target minimum
 
 ## Blocked by
 
 - 12 — Action buttons on a picked Option (the `DecidedRow` and
   `app/tonights-dinner-block.tsx` this ticket extends are built there)
+
+## Comments
+
+- Added `app/remove-control.tsx` — a client `RemoveControl` with local `confirming` state — and wired it into `DecidedRow` on the row's right edge beside the Option name, above the chip row and action buttons. It reuses `deleteLogEntry` as-is (no new server action), keying the delete by `entry.entryId`. Gate green (typecheck, lint, test, build).

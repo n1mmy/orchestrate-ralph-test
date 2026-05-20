@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { kindBarClass } from "./kind-bar";
+import { RemoveControl } from "./remove-control";
 import { RowChips } from "./tonight-row";
 import {
   type DecidedAction,
@@ -17,6 +18,9 @@ import {
  * Each row is a `DecidedRow`:
  *
  * - Option name as a `<Link>` to its detail page (`/catalog/[id]`);
+ * - a `RemoveControl` on the row's right edge beside the Option name —
+ *   the §17 inline-confirm that deletes today's Log entry for the Option
+ *   via the existing `deleteLogEntry` server action (ticket 13);
  * - the shared `RowChips` from `tonight-row.tsx` (Recency chip + Tag chips,
  *   no Explanation chip — none exists in the shipped app);
  * - the 3px meal-kind left bar (`kindBarClass`) plus a light kind-tinted
@@ -60,7 +64,7 @@ export function TonightsDinnerBlock({
  * and meet the 44×44px touch-target minimum.
  */
 function DecidedRow({ entry }: { entry: TonightsDinnerEntry }) {
-  const { row } = entry;
+  const { row, entryId } = entry;
   const { option, recencyDays, neverEaten, tags } = row;
   const wash =
     option.kind === "home" ? "bg-kind-home-wash" : "bg-kind-restaurant-wash";
@@ -71,13 +75,16 @@ function DecidedRow({ entry }: { entry: TonightsDinnerEntry }) {
         option.kind,
       )}`}
     >
-      <div className="flex flex-1 flex-col gap-2xs">
-        <Link
-          href={`/catalog/${option.id}`}
-          className="font-display text-name underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action"
-        >
-          {option.name}
-        </Link>
+      <div className="flex flex-col gap-2xs">
+        <div className="flex items-start justify-between gap-sm">
+          <Link
+            href={`/catalog/${option.id}`}
+            className="font-display text-name underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-action"
+          >
+            {option.name}
+          </Link>
+          <RemoveControl entryId={entryId} optionName={option.name} />
+        </div>
         <RowChips
           recencyDays={recencyDays}
           neverEaten={neverEaten}
