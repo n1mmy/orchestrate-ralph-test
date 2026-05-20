@@ -6,15 +6,28 @@
  * `aiSearchAction(query)` is the AI search entry point. It is
  * `authedAction`-wrapped (only an authenticated Household session may call
  * it), short-circuits when `ANTHROPIC_API_KEY` is unset (no DB read, no
- * model call), builds the snapshot from the active Catalog, the full Log,
- * and the Rejection history, and returns either the validated ordered
- * result or the typed `AI_SEARCH_UNAVAILABLE` outcome.
+ * model call), and builds the snapshot from three reads:
  *
- * Every failure mode — timeout, HTTP error, network, no-tool-use, malformed
- * input — collapses to the one unavailable outcome inside `lib/ai-search`.
+ *   - `getTonightData(today)` — the active Catalog (with notes and tags).
+ *   - `getFullLogForSnapshot()` — every Log row of an active Option,
+ *     past *and* future-dated (Planned dinners), so the AI path sees the
+ *     near future the deterministic ranking deliberately drops.
+ *   - `getRejections()` — every Rejection joined to its active Option,
+ *     past and future-dated alike; `buildSnapshot` partitions today's
+ *     subset to suppress those Options from the candidate list, and
+ *     hands the rest to the model as the Rejections block.
+ *
+ * Returns either the validated ordered result or the typed
+ * `AI_SEARCH_UNAVAILABLE` outcome. Every failure mode — timeout, HTTP
+ * error, network, no-tool-use, malformed input — collapses to the one
+ * unavailable outcome inside `lib/ai-search`.
  */
 
-import { getAiSearchSnapshotInput } from "@/db/queries";
+import {
+  getFullLogForSnapshot,
+  getRejections,
+  getTonightData,
+} from "@/db/queries";
 import {
   AI_SEARCH_UNAVAILABLE,
   aiSearchEnabled,
@@ -33,13 +46,24 @@ export const aiSearchAction = authedAction(
     if (!aiSearchEnabled()) return AI_SEARCH_UNAVAILABLE;
     const apiKey = process.env.ANTHROPIC_API_KEY ?? "";
 
-    const input = await getAiSearchSnapshotInput();
+    const todaySql = today();
+    const [tonight, fullLog, rejections] = await Promise.all([
+      getTonightData(todaySql),
+      getFullLogForSnapshot(),
+      getRejections(),
+    ]);
 
     const built = buildSnapshot({
-      catalog: input.catalog,
-      log: input.log,
-      rejections: input.rejections,
-      today: today(),
+      catalog: tonight.options.map((opt) => ({
+        id: opt.id,
+        name: opt.name,
+        kind: opt.kind,
+        tags: opt.tags,
+        notes: opt.notes,
+      })),
+      log: fullLog,
+      rejections,
+      today: todaySql,
       query,
     });
 

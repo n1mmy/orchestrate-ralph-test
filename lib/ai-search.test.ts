@@ -162,12 +162,21 @@ describe("buildSnapshot", () => {
     const { snapshot } = buildSnapshot(
       baseInput({
         rejections: [
-          { optionId: "uuid-banh-mi", rejectedOn: "2026-05-18", reason: "closed" },
+          {
+            optionId: "uuid-banh-mi",
+            rejectedOn: "2026-05-18",
+            reason: "closed",
+            optionName: "Banh mi",
+            kind: "restaurant",
+            tags: ["vietnamese"],
+          },
         ],
       }),
     );
     expect(snapshot.log.map((entry) => entry.id)).toEqual([1, 2]);
-    expect(snapshot.rejections.map((r) => r.id)).toEqual([2]);
+    // 2026-05-18 is earlier than today (2026-05-20) → notTodayRejections.
+    expect(snapshot.rejections.notTodayRejections.map((r) => r.id)).toEqual([2]);
+    expect(snapshot.rejections.rejectedTonight).toEqual([]);
   });
 
   it("sorts the log newest first including future-dated rows", () => {
@@ -210,6 +219,133 @@ describe("buildSnapshot", () => {
   it("does not carry any pre-computed recency", () => {
     const { snapshot } = buildSnapshot(baseInput());
     expect(JSON.stringify(snapshot)).not.toMatch(/recency/i);
+  });
+});
+
+describe("buildSnapshot — Rejections", () => {
+  function withRejections(
+    rejections: SnapshotInput["rejections"],
+    today = "2026-05-20",
+  ) {
+    return buildSnapshot(baseInput({ rejections, today }));
+  }
+
+  it("drops today-rejected Options from candidate `options` and `idByIndex` (number gap)", () => {
+    const { snapshot, idByIndex } = withRejections([
+      {
+        optionId: "uuid-arrabiata",
+        rejectedOn: "2026-05-20",
+        reason: "had it Sunday",
+        optionName: "Arrabiata",
+        kind: "home",
+        tags: ["pasta"],
+      },
+    ]);
+    // Arrabiata is alphabetically first → integer 1. After suppression,
+    // candidate options only carries Banh mi at its number, which is 2.
+    expect(snapshot.options.map((o) => o.id)).toEqual([2]);
+    expect(snapshot.options.map((o) => o.name)).toEqual([
+      "<household-text>Banh mi</household-text>",
+    ]);
+    expect(idByIndex.get(1)).toBeUndefined();
+    expect(idByIndex.get(2)).toBe("uuid-banh-mi");
+    // The Rejection block still carries the suppressed Option at its
+    // stable integer (so the model can read why it was passed over).
+    expect(snapshot.rejections.rejectedTonight.map((r) => r.id)).toEqual([1]);
+  });
+
+  it("an earlier-rejected Option remains a candidate", () => {
+    const { snapshot, idByIndex } = withRejections([
+      {
+        optionId: "uuid-arrabiata",
+        rejectedOn: "2026-05-10",
+        reason: "too rich",
+        optionName: "Arrabiata",
+        kind: "home",
+        tags: ["pasta"],
+      },
+    ]);
+    expect(snapshot.options.map((o) => o.id)).toEqual([1, 2]);
+    expect(idByIndex.get(1)).toBe("uuid-arrabiata");
+    expect(snapshot.rejections.notTodayRejections.map((r) => r.id)).toEqual([1]);
+    expect(snapshot.rejections.rejectedTonight).toEqual([]);
+  });
+
+  it("a future-dated rejection lands in notTodayRejections; its Option stays a candidate", () => {
+    const { snapshot, idByIndex } = withRejections([
+      {
+        optionId: "uuid-banh-mi",
+        rejectedOn: "2026-05-31",
+        reason: "closed for a wedding",
+        optionName: "Banh mi",
+        kind: "restaurant",
+        tags: ["vietnamese"],
+      },
+    ]);
+    expect(snapshot.options.map((o) => o.id)).toEqual([1, 2]);
+    expect(idByIndex.get(2)).toBe("uuid-banh-mi");
+    expect(snapshot.rejections.rejectedTonight).toEqual([]);
+    expect(snapshot.rejections.notTodayRejections).toHaveLength(1);
+    expect(snapshot.rejections.notTodayRejections[0].id).toBe(2);
+    expect(snapshot.rejections.notTodayRejections[0].date).toBe("Sun 2026-05-31");
+  });
+
+  it("carries both groups, with delimited reasons and weekday dates", () => {
+    const { snapshot } = withRejections([
+      {
+        optionId: "uuid-arrabiata",
+        rejectedOn: "2026-05-20",
+        reason: "had pasta last night",
+        optionName: "Arrabiata",
+        kind: "home",
+        tags: ["pasta"],
+      },
+      {
+        optionId: "uuid-banh-mi",
+        rejectedOn: "2026-05-10",
+        reason: "noisy on weekends",
+        optionName: "Banh mi",
+        kind: "restaurant",
+        tags: ["vietnamese"],
+      },
+    ]);
+    const rt = snapshot.rejections.rejectedTonight;
+    const nt = snapshot.rejections.notTodayRejections;
+    expect(rt).toHaveLength(1);
+    expect(nt).toHaveLength(1);
+    expect(rt[0].reason).toBe(
+      "<household-text>had pasta last night</household-text>",
+    );
+    expect(nt[0].reason).toBe(
+      "<household-text>noisy on weekends</household-text>",
+    );
+    expect(rt[0].date).toBe("Wed 2026-05-20");
+    expect(nt[0].date).toBe("Sun 2026-05-10");
+  });
+
+  it("carries a null reason as null", () => {
+    const { snapshot } = withRejections([
+      {
+        optionId: "uuid-arrabiata",
+        rejectedOn: "2026-05-10",
+        reason: null,
+        optionName: "Arrabiata",
+        kind: "home",
+        tags: ["pasta"],
+      },
+    ]);
+    expect(snapshot.rejections.notTodayRejections).toHaveLength(1);
+    expect(snapshot.rejections.notTodayRejections[0].reason).toBeNull();
+  });
+
+  it("includes future-dated Log entries with their real weekday dates, newest first", () => {
+    // baseInput already has a 2026-05-22 (future) Log entry alongside a 2026-05-18 one.
+    const { snapshot } = buildSnapshot(baseInput());
+    expect(snapshot.log.map((e) => e.eatenOn)).toEqual([
+      "2026-05-22",
+      "2026-05-18",
+    ]);
+    expect(snapshot.log[0].weekday).toBe("Fri");
   });
 });
 
@@ -345,6 +481,16 @@ describe("buildSystemPrompt", () => {
       expect(prompt).toMatch(/cadence/i);
       expect(prompt).toMatch(/rejection/i);
     }
+  });
+
+  it("explains the two Rejection groups and standing-vs-one-off self-judgment", () => {
+    const prompt = buildSystemPrompt("pithy");
+    expect(prompt).toMatch(/rejectedTonight/);
+    expect(prompt).toMatch(/notTodayRejections/);
+    expect(prompt).toMatch(/standing/i);
+    expect(prompt).toMatch(/one-off/i);
+    // The not-today group reads date-neutrally (rows may be future-dated).
+    expect(prompt).toMatch(/future/i);
   });
 
   it("swaps the open-query instruction per tail mode", () => {

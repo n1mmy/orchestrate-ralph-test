@@ -1,6 +1,7 @@
 /**
  * Eval harness for AI search. Drives the same code path
- * `aiSearchAction` does — `getAiSearchSnapshotInput` → `buildSnapshot` →
+ * `aiSearchAction` does — `getTonightData` + `getFullLogForSnapshot` +
+ * `getRejections` → `buildSnapshot` →
  * `createAiSearchClient(...).searchOnSnapshot(...)` — but from the
  * command line, without the Tonight UI.
  *
@@ -15,14 +16,41 @@
  * The remaining positional argument is the query — an empty string is
  * an open query (the model returns the whole candidate Catalog).
  */
-import { getAiSearchSnapshotInput } from "@/db/queries";
+import {
+  getFullLogForSnapshot,
+  getRejections,
+  getTonightData,
+} from "@/db/queries";
 import {
   buildSnapshot,
   createAiSearchClient,
   resolveTailMode,
+  type SnapshotInput,
   type TailMode,
 } from "@/lib/ai-search";
 import { today } from "@/lib/local-day";
+
+async function readSnapshotInputs(query: string): Promise<SnapshotInput> {
+  const todaySql = today();
+  const [tonight, log, rejections] = await Promise.all([
+    getTonightData(todaySql),
+    getFullLogForSnapshot(),
+    getRejections(),
+  ]);
+  return {
+    catalog: tonight.options.map((opt) => ({
+      id: opt.id,
+      name: opt.name,
+      kind: opt.kind,
+      tags: opt.tags,
+      notes: opt.notes,
+    })),
+    log,
+    rejections,
+    today: todaySql,
+    query,
+  };
+}
 
 type CliArgs = {
   query: string;
@@ -76,14 +104,7 @@ async function runOne(
   tail: TailMode,
   query: string,
 ): Promise<void> {
-  const input = await getAiSearchSnapshotInput();
-  const built = buildSnapshot({
-    catalog: input.catalog,
-    log: input.log,
-    rejections: input.rejections,
-    today: today(),
-    query,
-  });
+  const built = buildSnapshot(await readSnapshotInputs(query));
   const client = createAiSearchClient({
     apiKey,
     model,
@@ -121,14 +142,7 @@ async function main(): Promise<void> {
   const tail = args.mode ?? resolveTailMode();
 
   if (args.snapshotOnly) {
-    const input = await getAiSearchSnapshotInput();
-    const built = buildSnapshot({
-      catalog: input.catalog,
-      log: input.log,
-      rejections: input.rejections,
-      today: today(),
-      query: args.query,
-    });
+    const built = buildSnapshot(await readSnapshotInputs(args.query));
     // eslint-disable-next-line no-console
     console.log(JSON.stringify(built.snapshot, null, 2));
     return;
