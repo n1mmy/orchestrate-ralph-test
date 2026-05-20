@@ -21,17 +21,21 @@ import { RowChips } from "@/app/tonight-row";
 import { LogEntryRow } from "@/app/log/log-entry-row";
 import {
   getAllOptionsForSelect,
+  getAllTagNames,
   getOptionById,
   getOptionLog,
   getTonightData,
 } from "@/db/queries";
 import { formatDinnerDate, groupByDay } from "@/lib/dinner-grouping";
 import { epochDayFromSqlDate, today } from "@/lib/local-day";
+import { placesEnabled } from "@/lib/places";
 import {
   rankOption,
   type RankLogEntry,
   type RankOption,
 } from "@/lib/ranking";
+
+import { OptionControls } from "./option-controls";
 
 type Params = Promise<{ id: string }>;
 
@@ -43,11 +47,13 @@ export default async function OptionDetailPage({ params }: { params: Params }) {
   }
 
   const todaySql = today();
-  const [tonightData, optionLog, selectableOptions] = await Promise.all([
-    getTonightData(todaySql),
-    getOptionLog(option.id),
-    getAllOptionsForSelect(),
-  ]);
+  const [tonightData, optionLog, selectableOptions, tagSuggestions] =
+    await Promise.all([
+      getTonightData(todaySql),
+      getOptionLog(option.id),
+      getAllOptionsForSelect(),
+      getAllTagNames(),
+    ]);
 
   const todayEpoch = epochDayFromSqlDate(todaySql);
   const activeLog: RankLogEntry[] = tonightData.entries.map((entry) => ({
@@ -138,13 +144,19 @@ export default async function OptionDetailPage({ params }: { params: Params }) {
         />
       </section>
 
-      {/* Actions — stubbed in this slice; ticket 14 wires the OptionControls
-          component (Edit / Archive / Reject / Delete). */}
+      {/* Actions — Edit, Archive/Un-archive, conditional Delete, Reject, and
+          the shared PickButton. Delete only renders when the Hard-delete rule
+          (ADR-0001) permits it, hence the `optionLog.length === 0` guard. */}
       <section aria-label="Actions" className="flex flex-col gap-sm pb-md">
         <h2 className="text-meta font-semibold uppercase tracking-wider text-muted">
           Actions
         </h2>
-        <p className="text-meta text-muted">Coming soon.</p>
+        <OptionControls
+          option={option}
+          tagSuggestions={tagSuggestions}
+          placesEnabled={placesEnabled()}
+          canDelete={optionLog.length === 0}
+        />
       </section>
 
       {/* Details — conditional `<dl>` of hairline-separated labelled

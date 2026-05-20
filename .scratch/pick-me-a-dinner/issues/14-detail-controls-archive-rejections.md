@@ -1,6 +1,6 @@
 # 14 — Option detail page: Actions toolbar, Archived Options, Rejection history
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -148,31 +148,37 @@ and the reused `RejectionRow` are the whole of it.
 
 ## Acceptance criteria
 
-- [ ] `app/catalog/[id]/option-controls.tsx` exports `OptionControls`, rendered under the page's "Actions" heading
-- [ ] The toolbar offers Edit, Archive, a conditional Delete, Reject, and a `PickButton`, each reusing its existing server action
-- [ ] Edit swaps the controls for the reused `OptionForm` inline; a save revalidates `/catalog/[id]` and refreshes the page
-- [ ] Reject opens an inline optional-reason form; a same-day collision shows the typed-result error inline
-- [ ] Archive and Delete each take a §17 inline-confirm step
-- [ ] Delete renders only when the Option has no Log entries (`canDelete`)
-- [ ] A successful Delete routes to `/catalog`; a Delete blocked by the Hard-delete rule shows an inline error and keeps the page
-- [ ] `updateOption` / `archiveOption` / `deleteOption` and `rejectOption` revalidate `/catalog/[id]` alongside their existing targets
-- [ ] An Archived Option's detail page renders its header, Recency, Actions, Details, and History sections normally
-- [ ] `rankOption` returns `score: null` for an Archived Option (target absent from `activeOptions`) while still computing `recencyDays`, `neverEaten`, and the per-Tag chips
-- [ ] The "Recency" section's `RowChips` render for an Archived Option from those still-computed fields
-- [ ] `OptionControls`' Archive control is an Archive / Un-archive toggle; Un-archive runs in one tap and keeps the member on the page
-- [ ] `unarchiveOption(optionId)` is added to `app/catalog/actions.ts` — `authedAction`-wrapped, sets `active = true`, revalidates `/catalog` and `/catalog/[id]`
-- [ ] `app/catalog/catalog-screen.tsx` has a collapsed `Archived (N)` disclosure listing Archived Options as links to their detail pages, rendered only when something is Archived
-- [ ] `getArchivedOptions()` returns `active = false` Options as `{ id, name }` ordered by name; the active Catalog list is unchanged
-- [ ] `lib/ranking.test.ts` covers the Archived case — `score: null`, recency still computed from `targetLog`, only active Tag carriers count
-- [ ] `getOptionRejections(optionId)` returns every `rejections` row for the Option as `LogRejectionRow`, newest `rejected_on` first, not filtered to active Options
-- [ ] The detail page renders each Rejection inside the merged History section's date groups, after that date's logged dinners
-- [ ] Rejections are rendered with the reused `RejectionRow` component from `app/log/rejection-row.tsx`
-- [ ] A Rejection can be edited inline (Option, date, reason) and deleted via §17 inline-confirm from the History section
-- [ ] An edit or delete of a Rejection revalidates `/catalog/[id]` and refreshes the page in place
-- [ ] A Rejection's optional reason renders as a quiet line; a Rejection with no reason renders cleanly without one
-- [ ] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
+- [x] `app/catalog/[id]/option-controls.tsx` exports `OptionControls`, rendered under the page's "Actions" heading
+- [x] The toolbar offers Edit, Archive, a conditional Delete, Reject, and a `PickButton`, each reusing its existing server action
+- [x] Edit swaps the controls for the reused `OptionForm` inline; a save revalidates `/catalog/[id]` and refreshes the page
+- [x] Reject opens an inline optional-reason form; a same-day collision shows the typed-result error inline
+- [x] Archive and Delete each take a §17 inline-confirm step
+- [x] Delete renders only when the Option has no Log entries (`canDelete`)
+- [x] A successful Delete routes to `/catalog`; a Delete blocked by the Hard-delete rule shows an inline error and keeps the page
+- [x] `updateOption` / `archiveOption` / `deleteOption` and `rejectOption` revalidate `/catalog/[id]` alongside their existing targets
+- [x] An Archived Option's detail page renders its header, Recency, Actions, Details, and History sections normally
+- [x] `rankOption` returns `score: null` for an Archived Option (target absent from `activeOptions`) while still computing `recencyDays`, `neverEaten`, and the per-Tag chips
+- [x] The "Recency" section's `RowChips` render for an Archived Option from those still-computed fields
+- [x] `OptionControls`' Archive control is an Archive / Un-archive toggle; Un-archive runs in one tap and keeps the member on the page
+- [x] `unarchiveOption(optionId)` is added to `app/catalog/actions.ts` — `authedAction`-wrapped, sets `active = true`, revalidates `/catalog` and `/catalog/[id]`
+- [x] `app/catalog/catalog-screen.tsx` has a collapsed `Archived (N)` disclosure listing Archived Options as links to their detail pages, rendered only when something is Archived
+- [x] `getArchivedOptions()` returns `active = false` Options as `{ id, name }` ordered by name; the active Catalog list is unchanged
+- [x] `lib/ranking.test.ts` covers the Archived case — `score: null`, recency still computed from `targetLog`, only active Tag carriers count
+- [ ] `getOptionRejections(optionId)` returns every `rejections` row for the Option as `LogRejectionRow`, newest `rejected_on` first, not filtered to active Options *(skipped — depends on ticket 12 `RejectionRow` / `getOptionRejections`)*
+- [ ] The detail page renders each Rejection inside the merged History section's date groups, after that date's logged dinners *(skipped — see above)*
+- [ ] Rejections are rendered with the reused `RejectionRow` component from `app/log/rejection-row.tsx` *(skipped — `RejectionRow` not landed yet)*
+- [ ] A Rejection can be edited inline (Option, date, reason) and deleted via §17 inline-confirm from the History section *(skipped — see above)*
+- [ ] An edit or delete of a Rejection revalidates `/catalog/[id]` and refreshes the page in place *(skipped — see above)*
+- [ ] A Rejection's optional reason renders as a quiet line; a Rejection with no reason renders cleanly without one *(skipped — see above)*
+- [x] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
 
 ## Blocked by
 
 - 10 — Rejections: reject/suppress + uniqueness
 - 13 — Option detail page: core, merged History, Option-name links
+
+## Comments
+
+Ralph worker — built Actions toolbar (`OptionControls`), Archived disclosure on the Catalog, `unarchiveOption`/`getArchivedOptions`, `revalidateCatalog()` helper (now driving `updateOption` / `archiveOption` / `unarchiveOption` / `deleteOption`), and extended `lib/ranking.test.ts` with three Archived-target cases. Gate green: `pnpm typecheck`, `pnpm test`, `pnpm build`.
+
+Skipped six Rejection-history boxes because the prerequisite `RejectionRow` (ticket 12) and `getOptionRejections` query were not in this worktree's base — passed `[]` for rejections through `groupByDay`, as instructed by the spec. Follow-up should wire those Rejection rows in when ticket 12 lands.

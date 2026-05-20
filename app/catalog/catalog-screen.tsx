@@ -1,5 +1,7 @@
+import Link from "next/link";
+
 import { OptionSection } from "./option-section";
-import type { ActiveCatalog } from "@/db/queries";
+import type { ActiveCatalog, ArchivedOption } from "@/db/queries";
 
 type Props = {
   catalog: ActiveCatalog;
@@ -11,14 +13,27 @@ type Props = {
    * (`page.tsx`) and threaded down so this client tree never sees the key.
    */
   placesEnabled: boolean;
+  /**
+   * Archived (`active = false`) Options, alphabetical. Pinned to the
+   * bottom of the screen in a collapsed "Archived (N)" disclosure; the
+   * disclosure does not render at all when nothing is Archived, so the
+   * active Catalog reads exactly as before.
+   */
+  archived: ArchivedOption[];
 };
 
 /**
  * Catalog screen — two sections, one for Home meals and one for Restaurants.
  * Identical on phone and desktop (a single `.column`). Empty Catalog shows
- * the §17 placeholder line.
+ * the §17 placeholder line. An optional "Archived" disclosure sits at the
+ * bottom and links each Archived Option back into its detail page.
  */
-export function CatalogScreen({ catalog, tagSuggestions, placesEnabled }: Props) {
+export function CatalogScreen({
+  catalog,
+  tagSuggestions,
+  placesEnabled,
+  archived,
+}: Props) {
   const empty = catalog.home.length === 0 && catalog.restaurants.length === 0;
 
   return (
@@ -45,6 +60,38 @@ export function CatalogScreen({ catalog, tagSuggestions, placesEnabled }: Props)
         tagSuggestions={tagSuggestions}
         placesEnabled={placesEnabled}
       />
+      {archived.length > 0 ? <ArchivedDisclosure archived={archived} /> : null}
     </main>
+  );
+}
+
+/**
+ * Collapsed "Archived (N)" disclosure pinned to the bottom of the Catalog.
+ * Mirrors Tonight's "Rejected tonight" pattern: a `<details>` element
+ * with the same hairline border the OptionRow uses, expanding to a list
+ * of `next/link`s to each Archived Option's detail page.
+ */
+function ArchivedDisclosure({ archived }: { archived: ArchivedOption[] }) {
+  return (
+    <details className="flex flex-col gap-sm py-lg">
+      <summary className="cursor-pointer font-display text-name text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink">
+        Archived ({archived.length})
+      </summary>
+      <ul className="flex flex-col">
+        {archived.map((option) => (
+          <li
+            key={option.id}
+            className="flex flex-row items-center border-b border-line py-md"
+          >
+            <Link
+              href={`/catalog/${option.id}`}
+              className="font-display text-name text-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+            >
+              {option.name}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
