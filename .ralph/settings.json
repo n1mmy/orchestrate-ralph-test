@@ -26,6 +26,7 @@
       "Bash(pnpm typecheck:*)",
       "Bash(pnpm test:*)",
       "Bash(pnpm build:*)",
+      "Bash(pnpm install:*)",
       "Bash(cp .env.example .env:*)"
     ],
     "deny": [

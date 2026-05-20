@@ -21,14 +21,16 @@ pnpm build
 
 ```
 cp .env.example .env
+pnpm install
 ```
 
-A fresh worktree has no `.env` (it is gitignored). The committed
-`.env.example` carries placeholder values for `DATABASE_URL`, `APP_PASSWORD`,
-`APP_SECRET`, `APP_TZ`, and `GOOGLE_PLACES_API_KEY` — enough for the gate
-(`pnpm build` runs with no live `DATABASE_URL` because the Drizzle client is
-lazy). The worker performs this step first thing; the orchestrator performs
-it before the gate.
+A fresh worktree has no `.env` and no `node_modules` (both gitignored).
+`cp .env.example .env` materialises placeholders for `DATABASE_URL`,
+`APP_PASSWORD`, `APP_SECRET`, `APP_TZ`, and `GOOGLE_PLACES_API_KEY` — enough
+for the gate (`pnpm build` runs with no live `DATABASE_URL` because the
+Drizzle client is lazy). `pnpm install` materialises `node_modules` so the
+gate's `tsc` / `vitest` / `next` binaries resolve. The worker performs both
+steps first thing; the orchestrator performs them before the gate.
 
 ## Parallelism
 
