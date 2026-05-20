@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   AI_SEARCH_UNAVAILABLE,
+  MAX_RATIONALE_LENGTH,
   REQUEST_TIMEOUT_MS,
   buildSnapshot,
   createAiSearchClient,
@@ -269,18 +270,153 @@ describe("parseAndValidate", () => {
     expect(parseAndValidate({ ranking: [] }, idByIndex)).toEqual([]);
   });
 
-  it("drops rows whose id is not an integer or reason is not a string", () => {
+  it("skips a malformed entry (non-string reason) while keeping the valid rows around it", () => {
     const result = parseAndValidate(
       {
         ranking: [
-          { id: "1", reason: "string id is dropped" },
-          { id: 2, reason: 123 },
-          { id: 3, reason: "ok" },
+          { id: 1, reason: "Friday pizza." },
+          { id: 2, reason: 123 }, // non-string reason: skipped
+          { id: 3, reason: "Comfort." },
         ],
       },
       idByIndex,
     );
-    expect(result).toEqual([{ optionId: CHICKEN_ID, reason: "ok" }]);
+    expect(result).toEqual([
+      { optionId: ALICE_ID, reason: "Friday pizza." },
+      { optionId: CHICKEN_ID, reason: "Comfort." },
+    ]);
+  });
+
+  it("skips a malformed entry whose id is not an integer or numeric string", () => {
+    const result = parseAndValidate(
+      {
+        ranking: [
+          { id: 1, reason: "ok" },
+          { id: "3a", reason: "non-numeric string id: skipped" },
+          { id: null, reason: "null id: skipped" },
+          { id: undefined, reason: "missing id: skipped" },
+          { reason: "no id at all: skipped" },
+          { id: 2, reason: "still ok" },
+        ],
+      },
+      idByIndex,
+    );
+    expect(result).toEqual([
+      { optionId: ALICE_ID, reason: "ok" },
+      { optionId: BANH_ID, reason: "still ok" },
+    ]);
+  });
+
+  it("accepts a numeric-string id ('3') as equivalent to the integer 3", () => {
+    const result = parseAndValidate(
+      {
+        ranking: [
+          { id: "3", reason: "comfort food" },
+          { id: "1", reason: "pizza night" },
+        ],
+      },
+      idByIndex,
+    );
+    expect(result).toEqual([
+      { optionId: CHICKEN_ID, reason: "comfort food" },
+      { optionId: ALICE_ID, reason: "pizza night" },
+    ]);
+  });
+
+  it("rejects a float id (3.5 or '3.5')", () => {
+    const result = parseAndValidate(
+      {
+        ranking: [
+          { id: 3.5, reason: "float number: skipped" },
+          { id: "3.5", reason: "float string: skipped" },
+          { id: 2, reason: "ok" },
+        ],
+      },
+      idByIndex,
+    );
+    expect(result).toEqual([{ optionId: BANH_ID, reason: "ok" }]);
+  });
+
+  it("dedupes a repeated Option, keeping the first occurrence", () => {
+    const result = parseAndValidate(
+      {
+        ranking: [
+          { id: 2, reason: "first reason for Banh Mi" },
+          { id: 3, reason: "Chicken Soup" },
+          { id: 2, reason: "duplicate Banh Mi — dropped" },
+          { id: "2", reason: "duplicate again via string id — dropped" },
+        ],
+      },
+      idByIndex,
+    );
+    expect(result).toEqual([
+      { optionId: BANH_ID, reason: "first reason for Banh Mi" },
+      { optionId: CHICKEN_ID, reason: "Chicken Soup" },
+    ]);
+  });
+
+  it("truncates an over-long rationale at the last word boundary with an ellipsis", () => {
+    // A long, word-rich rationale that exceeds the cap.
+    const longReason =
+      "Sushi runs about weekly and this household has eaten it nine days out from a Friday, so the pattern is clear: the cadence is steady and the recency points to a fresh round, with a typical lean toward salmon nigiri and a side of edamame to round out the meal.";
+    expect(longReason.length).toBeGreaterThan(MAX_RATIONALE_LENGTH);
+    const result = parseAndValidate(
+      { ranking: [{ id: 1, reason: longReason }] },
+      idByIndex,
+    );
+    expect(result).toHaveLength(1);
+    const truncated = result?.[0]?.reason ?? "";
+    // The output stays within the cap (allowing for the ellipsis suffix).
+    expect(truncated.length).toBeLessThanOrEqual(MAX_RATIONALE_LENGTH + 1);
+    // Ends with an ellipsis, not mid-word.
+    expect(truncated.endsWith("…")).toBe(true);
+    // Cut at a word boundary: the character before the ellipsis is not a space
+    // (we trimmed), and the truncated body matches the start of the original
+    // up to a real word boundary.
+    const body = truncated.slice(0, -1);
+    expect(body).not.toMatch(/\s$/);
+    expect(longReason.startsWith(body)).toBe(true);
+    // The next character in the original is a space — confirming a clean
+    // word-boundary cut, not a mid-word break.
+    expect(longReason.charAt(body.length)).toBe(" ");
+  });
+
+  it("truncates a single over-long word with no space at the cap itself with an ellipsis", () => {
+    const longWord = "a".repeat(MAX_RATIONALE_LENGTH + 50);
+    const result = parseAndValidate(
+      { ranking: [{ id: 1, reason: longWord }] },
+      idByIndex,
+    );
+    expect(result).toHaveLength(1);
+    const truncated = result?.[0]?.reason ?? "";
+    expect(truncated.length).toBe(MAX_RATIONALE_LENGTH + 1);
+    expect(truncated.endsWith("…")).toBe(true);
+    expect(truncated.slice(0, -1)).toBe("a".repeat(MAX_RATIONALE_LENGTH));
+  });
+
+  it("leaves a rationale within the cap unchanged", () => {
+    const shortReason = "Sushi runs ~weekly, 9 days out.";
+    const result = parseAndValidate(
+      { ranking: [{ id: 1, reason: shortReason }] },
+      idByIndex,
+    );
+    expect(result).toEqual([{ optionId: ALICE_ID, reason: shortReason }]);
+  });
+
+  it("keeps an empty-string reason as-is — pithy tail mode flags an obviously bad pick", () => {
+    const result = parseAndValidate(
+      {
+        ranking: [
+          { id: 1, reason: "Friday pizza." },
+          { id: 2, reason: "" },
+        ],
+      },
+      idByIndex,
+    );
+    expect(result).toEqual([
+      { optionId: ALICE_ID, reason: "Friday pizza." },
+      { optionId: BANH_ID, reason: "" },
+    ]);
   });
 });
 

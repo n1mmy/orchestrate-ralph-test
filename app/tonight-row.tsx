@@ -37,11 +37,14 @@ export function TonightRow({
   row: TonightRowData;
   onRejected?: (optionName: string) => void;
   /**
-   * The AI rationale on an AI-search result row (ticket 14). When set, the
-   * row renders the rationale on a neutral `raised` surface beneath the chip
-   * row in place of the deterministic prose — the chip row itself stays for
-   * continuity. `undefined` (the default) is the deterministic-list path and
-   * renders nothing extra.
+   * The AI rationale on an AI-search result row (ticket 14). When set to a
+   * non-empty string, the row renders the rationale on a neutral `raised`
+   * surface beneath the chip row — the chip row itself stays for continuity.
+   * `undefined` (the default) is the deterministic-list path. An
+   * **empty-string** `aiReason` (ticket 16) is the pithy-tail signal — the
+   * model judged this an obviously bad pick and deliberately returned no
+   * rationale; the row must render with no rationale line at all, reading
+   * exactly like a deterministic row.
    */
   aiReason?: string;
 }) {
@@ -62,7 +65,7 @@ export function TonightRow({
           neverEaten={neverEaten}
           tags={tags}
         />
-        {aiReason ? (
+        {typeof aiReason === "string" && aiReason.length > 0 ? (
           <p className="mt-xs rounded-control bg-raised px-sm py-xs text-meta text-ink">
             {aiReason}
           </p>
