@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { kindBarClass } from "./kind-bar";
 import { PickButton } from "./pick-button";
 import { RejectControl } from "./reject-control";
@@ -7,9 +8,9 @@ import type { TagRecency, TonightRow as TonightRowData } from "@/lib/ranking";
 
 /**
  * One row in the Tonight ranked list. Renders the rank number (Geist Mono),
- * the 3px meal-kind left bar, the Option name as plain text (not yet a link
- * to `/catalog/[id]` — that comes in a later phase), the Recency chip, the
- * per-Tag chips, and the real "Pick" button (`PickButton`), which calls
+ * the 3px meal-kind left bar, the Option name as a `next/link` to
+ * `/catalog/[id]` (ticket 27), the Recency chip, the per-Tag chips, and the
+ * real "Pick" button (`PickButton`), which calls
  * `pickTonight(optionId)`; on success Tonight switches into decided mode
  * (the Option lands in the "Tonight's dinner" panel above the picker) —
  * that transition is the confirmation of a successful Pick.
@@ -59,7 +60,12 @@ export function TonightRow({
         {rank}
       </span>
       <div className="flex flex-1 flex-col gap-2xs">
-        <span className="font-display text-name">{option.name}</span>
+        <Link
+          href={`/catalog/${option.id}`}
+          className="font-display text-name underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
+        >
+          {option.name}
+        </Link>
         <RowChips
           recencyDays={recencyDays}
           neverEaten={neverEaten}

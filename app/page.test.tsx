@@ -84,6 +84,16 @@ describe("TonightRow", () => {
     expect(screen.getByText("17d")).toBeDefined();
   });
 
+  it("links the Option name to its detail page at /catalog/[id]", () => {
+    render(
+      <ol>
+        <TonightRow rank={1} row={row()} />
+      </ol>,
+    );
+    const link = screen.getByRole("link", { name: "Aji Ichi" });
+    expect(link.getAttribute("href")).toBe("/catalog/a");
+  });
+
   it("renders one Tag chip per Tag with its name and per-Tag recency", () => {
     render(
       <ol>

@@ -331,16 +331,22 @@ describe("AI search (rendered by TonightScreen)", () => {
   it("the inline error persists across a subsequent submit — not cleared on submit alone", async () => {
     aiSearchAction.mockReset();
     aiSearchAction.mockResolvedValue({ ok: false });
-    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+    const { container } = render(
+      <TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />,
+    );
+    const form = container.querySelector("form[role=search]")!;
 
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    fireEvent.submit(form);
     await waitFor(() => {
       expect(screen.getByText("Search unavailable — try again")).toBeDefined();
     });
 
     // A second submit: the error must remain visible across the submit — it
-    // is not cleared just because the Household tried again.
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    // is not cleared just because the Household tried again. Use
+    // `fireEvent.submit` rather than `fireEvent.click` on the submit button —
+    // jsdom's submit-on-click chain is fragile across re-renders with sibling
+    // anchor tags in the tree, and `submit` reaches the same React handler.
+    fireEvent.submit(form);
     expect(screen.getByText("Search unavailable — try again")).toBeDefined();
 
     await waitFor(() => {
@@ -358,14 +364,17 @@ describe("AI search (rendered by TonightScreen)", () => {
         ok: true,
         results: [{ optionId: "opt-a", reason: "Friday pizza tradition." }],
       });
-    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+    const { container } = render(
+      <TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />,
+    );
+    const form = container.querySelector("form[role=search]")!;
 
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    fireEvent.submit(form);
     await waitFor(() => {
       expect(screen.getByText("Search unavailable — try again")).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    fireEvent.submit(form);
     await waitFor(() => {
       expect(screen.queryByText("Search unavailable — try again")).toBeNull();
     });
