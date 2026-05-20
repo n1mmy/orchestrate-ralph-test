@@ -48,3 +48,7 @@ Test per the source PRD: full Vitest unit coverage of `lib/rejections.ts` in a n
   `buildSnapshot` and `buildSystemPrompt`)
 - 19 — Reject and suppress (needs the `rejections` table this snapshot
   block reasons over)
+
+## Comments
+
+- attempt 1: worker succeeded but merge into integration aborted on conflict in `lib/ai-search.ts` and `lib/ai-search.test.ts` (issue 18 dispatched in the same wave reworked the same module — `aiSearchEnabled()`, model selection, `cache_control`, observability logging, and extensive new tests). Re-run branches off the updated tip — issue 18 is now merged — so layer the Rejections snapshot extension (`partitionRejections`, `RejectionsBlock`, the `rejections: RejectionRow[]` parameter to `buildSnapshot`, the system-prompt addition, the `getRejections()` query, and the `lib/rejections.ts` module) on top of 18's `aiSearchEnabled` / `MODEL_DEFAULT` / `aiSearchLog` / `cache_control` structure rather than rewriting the file.
