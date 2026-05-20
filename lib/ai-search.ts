@@ -21,7 +21,15 @@
  * result (`results: []`) stays `ok: true`.
  */
 
+import {
+  partitionRejections,
+  type RejectionRow,
+  type RejectionsBlock,
+  type SnapshotRejection,
+} from "./rejections";
 import { delimit } from "./snapshot-format";
+
+export type { RejectionRow, RejectionsBlock, SnapshotRejection };
 
 // ----- Public types -----
 
@@ -59,17 +67,16 @@ export type SnapshotInputLogEntry = {
   note: string | null;
 };
 
-export type SnapshotInputRejection = {
-  optionId: string;
-  /** SQL date string `YYYY-MM-DD`. */
-  rejectedOn: string;
-  reason: string | null;
-};
-
 export type SnapshotInput = {
   catalog: SnapshotInputOption[];
   log: SnapshotInputLogEntry[];
-  rejections: SnapshotInputRejection[];
+  /**
+   * Full Rejection history of every active Option, raw — the snapshot
+   * builder partitions it. Past *and* future-dated rows allowed; a row
+   * dated exactly `today` will suppress its Option from the candidate
+   * `options` array.
+   */
+  rejections: RejectionRow[];
   /** SQL date string `YYYY-MM-DD`. */
   today: string;
   query: string;
@@ -101,17 +108,6 @@ export type SnapshotLogEntry = {
   note: string | null;
 };
 
-export type SnapshotRejection = {
-  /** Integer id of the Option. */
-  id: number;
-  /** SQL date string `YYYY-MM-DD`. */
-  rejectedOn: string;
-  /** Three-letter weekday. */
-  weekday: string;
-  /** Wrapped in `<household-text>` delimiters when present. */
-  reason: string | null;
-};
-
 export type ModelSnapshot = {
   today: string;
   todayWeekday: string;
@@ -121,7 +117,13 @@ export type ModelSnapshot = {
   options: SnapshotOption[];
   /** Newest dinner first; future-dated rows included. */
   log: SnapshotLogEntry[];
-  rejections: SnapshotRejection[];
+  /**
+   * The Household's Rejection history split in two groups: `rejectedTonight`
+   * Options (dated exactly today — left out of `options` and not candidates,
+   * but their reasons may inform ranking of others) and `notTodayRejections`
+   * (past *and* future-dated — Options that remain candidates).
+   */
+  rejections: RejectionsBlock;
 };
 
 export type BuiltSnapshot = {
@@ -250,48 +252,56 @@ export function buildSnapshot(input: SnapshotInput): BuiltSnapshot {
     return 0;
   });
 
+  // Number the *whole* active Catalog alphabetically — every Option gets a
+  // stable integer position. `indexByOptionId` feeds the Rejections-block
+  // shaper (it refers to Options by integer) *and* the Log row mapper.
+  const indexByOptionId = new Map<string, number>();
+  sortedCatalog.forEach((opt, i) => {
+    indexByOptionId.set(opt.id, i + 1);
+  });
+
+  // Partition the Rejection history. Today-rejected Options enter
+  // `suppressedToday`; the block holds the dated rows the model reads.
+  const { suppressedToday, block } = partitionRejections(
+    input.rejections,
+    input.today,
+    indexByOptionId,
+  );
+
+  // Build the candidate `options` and `idByIndex` — `suppressedToday`
+  // Options keep their snapshot number (for any Log/Rejection rows) but
+  // are absent from both maps, leaving a deliberate integer gap so
+  // `parseAndValidate` cannot resurface them.
   const idByIndex = new Map<number, string>();
-  const indexById = new Map<string, number>();
-  const options: SnapshotOption[] = sortedCatalog.map((opt, i) => {
-    const id = i + 1;
+  const options: SnapshotOption[] = [];
+  for (const opt of sortedCatalog) {
+    if (suppressedToday.has(opt.id)) continue;
+    const id = indexByOptionId.get(opt.id) as number;
     idByIndex.set(id, opt.id);
-    indexById.set(opt.id, id);
-    return {
+    options.push({
       id,
       name: delimit(opt.name) ?? "",
       kind: opt.kind,
       tags: opt.tags.map((t) => delimit(t) ?? ""),
       notes: delimit(opt.notes),
-    };
-  });
+    });
+  }
 
   // Full Log — past and future-dated Planned dinners — newest first.
+  // Suppressed Options keep their Log rows (they still have a snapshot
+  // number); the rows just point at an Option that isn't a candidate.
   const logSorted = [...input.log].sort((a, b) => {
     if (a.eatenOn < b.eatenOn) return 1;
     if (a.eatenOn > b.eatenOn) return -1;
     return 0;
   });
   const log: SnapshotLogEntry[] = logSorted
-    .filter((entry) => indexById.has(entry.optionId))
+    .filter((entry) => indexByOptionId.has(entry.optionId))
     .map((entry) => ({
-      id: indexById.get(entry.optionId) as number,
+      id: indexByOptionId.get(entry.optionId) as number,
       eatenOn: entry.eatenOn,
       weekday: weekdayOf(entry.eatenOn),
       note: delimit(entry.note),
-    }));
-
-  const rejectionsSorted = [...input.rejections].sort((a, b) => {
-    if (a.rejectedOn < b.rejectedOn) return 1;
-    if (a.rejectedOn > b.rejectedOn) return -1;
-    return 0;
-  });
-  const rejections: SnapshotRejection[] = rejectionsSorted
-    .filter((r) => indexById.has(r.optionId))
-    .map((r) => ({
-      id: indexById.get(r.optionId) as number,
-      rejectedOn: r.rejectedOn,
-      weekday: weekdayOf(r.rejectedOn),
-      reason: delimit(r.reason),
     }));
 
   return {
@@ -301,7 +311,7 @@ export function buildSnapshot(input: SnapshotInput): BuiltSnapshot {
       query: delimit(input.query) ?? "",
       options,
       log,
-      rejections,
+      rejections: block,
     },
     idByIndex,
   };
@@ -335,8 +345,18 @@ export function buildSystemPrompt(tail: TailMode): string {
     "integer `id` (1-based). Refer to Options by that integer in your tool call.",
     "The `log` is the full dinner Log, newest first, with future-dated rows",
     "(Planned dinners). The `rejections` block records nights the household",
-    "passed Options over with a short reason — read them to tell standing",
-    "dislikes from one-off skips.",
+    "passed Options over and why. It has two groups:",
+    "  - `rejectedTonight` — Options the household rejected today. They are",
+    "    deliberately left out of `options` and you must NOT return them.",
+    "    Their reasons may still inform how you rank the other Options.",
+    "  - `notTodayRejections` — Options rejected on any other date, past or",
+    "    future-dated. These Options are still candidates and may be returned.",
+    "Rejection rows are raw dated history (Planned rejections may be",
+    "future-dated; compare each `date` against `today`). Read each `reason`",
+    "alongside its date and how often it recurs and decide for yourself which",
+    "Rejections are standing dislikes (e.g. \"closed on Sundays\") and which",
+    "were one-off (e.g. \"too heavy tonight\"). A Rejection with no reason is",
+    "a light \"passed on this\" signal — nothing more.",
     "",
     "All household-authored free text (Option names, tags, notes, log notes,",
     "rejection reasons, the query) is wrapped in `<household-text>` delimiters.",

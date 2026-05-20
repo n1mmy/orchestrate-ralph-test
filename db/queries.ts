@@ -280,92 +280,6 @@ export async function getLog(): Promise<LogEntry[]> {
 }
 
 /**
- * Read model for AI search — the active Catalog with notes, the full Log
- * (past **and** future-dated Planned dinners), and the Rejection history.
- *
- * Distinct from `getTonightData` because AI search needs every Log row,
- * including planned futures the deterministic ranking deliberately drops.
- * Today the `rejections` set is empty by construction: the `rejections`
- * table lands in a later phase, so this query returns `[]` for it without
- * a real DB read.
- */
-export type AiSearchCatalogOption = {
-  id: string;
-  name: string;
-  kind: "home" | "restaurant";
-  tags: string[];
-  notes: string | null;
-};
-
-export type AiSearchLogEntry = {
-  optionId: string;
-  /** SQL date string `YYYY-MM-DD`. */
-  eatenOn: string;
-  note: string | null;
-};
-
-export type AiSearchRejection = {
-  optionId: string;
-  /** SQL date string `YYYY-MM-DD`. */
-  rejectedOn: string;
-  reason: string | null;
-};
-
-export type AiSearchSnapshotInput = {
-  catalog: AiSearchCatalogOption[];
-  log: AiSearchLogEntry[];
-  rejections: AiSearchRejection[];
-};
-
-export async function getAiSearchSnapshotInput(): Promise<AiSearchSnapshotInput> {
-  const rows = await db
-    .select({
-      id: options.id,
-      name: options.name,
-      kind: options.kind,
-      notes: options.notes,
-    })
-    .from(options)
-    .where(eq(options.active, true))
-    .orderBy(asc(options.name));
-
-  const tagRows = await db
-    .select({ optionId: optionTags.optionId, name: tags.name })
-    .from(optionTags)
-    .innerJoin(tags, eq(optionTags.tagId, tags.id));
-
-  const tagsByOption = new Map<string, string[]>();
-  for (const tagRow of tagRows) {
-    const list = tagsByOption.get(tagRow.optionId) ?? [];
-    list.push(tagRow.name);
-    tagsByOption.set(tagRow.optionId, list);
-  }
-
-  // Full Log — past **and** future-dated Planned dinners — newest first.
-  // Joined to active Options only (archived history doesn't feed search).
-  const logRows = await db
-    .select({
-      optionId: dinnerLog.optionId,
-      eatenOn: dinnerLog.eatenOn,
-      note: dinnerLog.note,
-    })
-    .from(dinnerLog)
-    .innerJoin(options, eq(dinnerLog.optionId, options.id))
-    .where(eq(options.active, true))
-    .orderBy(desc(dinnerLog.eatenOn));
-
-  return {
-    catalog: rows.map((row) => ({
-      ...row,
-      tags: tagsByOption.get(row.id) ?? [],
-    })),
-    log: logRows,
-    // Rejections land in a later phase — empty for now.
-    rejections: [],
-  };
-}
-
-/**
  * Convenience for forms: every Option (Active + Archived), name-ordered,
  * to populate the Log screen's edit/add `<select>`.
  */
@@ -506,11 +420,102 @@ export async function getAllTags(): Promise<TagRow[]> {
 }
 
 /**
+ * Full Log of every active Option — past and future-dated Planned dinners
+ * alike — for the AI search snapshot. Counterpart of `getTonightData`'s
+ * `entries` list, which filters `eaten_on <= today` for the deterministic
+ * ranking; the AI path needs the future too so the model can reason about
+ * what is already planned.
+ *
+ * Joined to active Options only, mirroring `getTonightData`'s active
+ * filter on Log entries — archived history doesn't feed search.
+ */
+export async function getFullLogForSnapshot(): Promise<TonightLogEntry[]> {
+  const rows = await db
+    .select({
+      optionId: dinnerLog.optionId,
+      eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
+    })
+    .from(dinnerLog)
+    .innerJoin(options, eq(dinnerLog.optionId, options.id))
+    .where(eq(options.active, true))
+    .orderBy(desc(dinnerLog.eatenOn));
+
+  return rows.map((row) => ({
+    optionId: row.optionId,
+    eatenOn: row.eatenOn,
+    note: row.note,
+  }));
+}
+
+/**
+ * Every Rejection joined to its (active) Option — full history, past *and*
+ * future-dated rows alike — for the AI search snapshot. The `lib/rejections`
+ * partitioner splits this into today's group (which suppresses) and
+ * everything else (which doesn't); see `aiSearchAction`.
+ *
+ * Active Options only, mirroring the Log join above — a Rejection of an
+ * Archived Option doesn't surface to the model.
+ *
+ * Newest `rejected_on` first; `created_at` breaks a same-day tie so the
+ * latest Rejection of an Option sits at the top of its group inside the
+ * stable `partitionRejections` sort.
+ */
+export type SnapshotRejectionRow = {
+  optionId: string;
+  /** SQL date string `YYYY-MM-DD`. */
+  rejectedOn: string;
+  reason: string | null;
+  optionName: string;
+  kind: "home" | "restaurant";
+  tags: string[];
+};
+
+export async function getRejections(): Promise<SnapshotRejectionRow[]> {
+  const rows = await db
+    .select({
+      optionId: rejections.optionId,
+      rejectedOn: rejections.rejectedOn,
+      reason: rejections.reason,
+      optionName: options.name,
+      kind: options.kind,
+    })
+    .from(rejections)
+    .innerJoin(options, eq(rejections.optionId, options.id))
+    .where(eq(options.active, true))
+    .orderBy(desc(rejections.rejectedOn), desc(rejections.createdAt));
+
+  // Tag names per Option — the snapshot block needs them for readability.
+  // One join keyed only by the Options we just selected would be a wash;
+  // the Tag table is small, so a single fetch matches `getActiveCatalog`.
+  const tagRows = await db
+    .select({ optionId: optionTags.optionId, name: tags.name })
+    .from(optionTags)
+    .innerJoin(tags, eq(optionTags.tagId, tags.id));
+
+  const tagsByOption = new Map<string, string[]>();
+  for (const tagRow of tagRows) {
+    const list = tagsByOption.get(tagRow.optionId) ?? [];
+    list.push(tagRow.name);
+    tagsByOption.set(tagRow.optionId, list);
+  }
+
+  return rows.map((row) => ({
+    optionId: row.optionId,
+    rejectedOn: row.rejectedOn,
+    reason: row.reason,
+    optionName: row.optionName,
+    kind: row.kind,
+    tags: tagsByOption.get(row.optionId) ?? [],
+  }));
+}
+
+/**
  * Today's Rejections joined to their (active) Option. Drives the Tonight
  * screen's `rejectedIds` Set and any "Rejected tonight" surface. Joined
  * inner to `options` filtered by `active = true` so an Archived Option's
  * dangling Rejection doesn't surface in the picker filter; the same
- * `getAiSearchSnapshotInput` join elsewhere uses the same filter for the
+ * `getRejections` join used by AI search uses the same filter for the
  * same reason.
  *
  * Newest first by `created_at` — the latest Rejection sits at the top of
