@@ -1,6 +1,6 @@
 # 02 — Dockerfile, GHCR workflow, startup checks
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -54,17 +54,17 @@ carries placeholders only. The Postgres connection is plain (no
 
 ## Acceptance criteria
 
-- [ ] The multi-stage Dockerfile builds the app (pnpm, Next.js `standalone`)
+- [x] The multi-stage Dockerfile builds the app (pnpm, Next.js `standalone`)
       and the slim non-root `runner` `CMD` runs the app only — no migration
       step — bundling the `drizzle/` migration files for the schema check
-- [ ] `.github/workflows/build.yml` builds and pushes the image to GHCR on
+- [x] `.github/workflows/build.yml` builds and pushes the image to GHCR on
       push to `main` and on tags
-- [ ] On boot, `checkEnvOnBoot` exits non-zero with a loud message on a missing
+- [x] On boot, `checkEnvOnBoot` exits non-zero with a loud message on a missing
       required env var or an invalid `APP_TZ`
-- [ ] On boot, a DB behind the bundled migrations produces the loud specific
+- [x] On boot, a DB behind the bundled migrations produces the loud specific
       `schema-check` message and a non-zero exit; a DB at the current migration
       boots normally; an unreachable DB logs a warning and continues
-- [ ] The `/api/ready` route returns 200 when the DB is reachable, 503 when not
+- [x] The `/api/ready` route returns 200 when the DB is reachable, 503 when not
 
 ## Blocked by
 
