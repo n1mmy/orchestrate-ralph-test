@@ -13,6 +13,13 @@ type Props = {
   rank: number;
   /** When true (Log screen) the Recency chip + Pick button are hidden. */
   variant?: "tonight" | "log";
+  /**
+   * AI search rationale for this row. When present and non-empty, it
+   * renders below the chip row on a neutral `raised` surface. An empty
+   * string is a legitimate `pithy`-mode signal and renders no rationale
+   * line — the row reads like a deterministic row in that case.
+   */
+  aiReason?: string;
 };
 
 function recencyLabel(row: TonightRowData): string {
@@ -72,7 +79,8 @@ export function RowChips({ row }: { row: TonightRowData }) {
  * same shape, separated by a 1px `line` rule, no per-row background tint,
  * no lead-option prominence.
  */
-export function TonightRow({ row, rank, variant = "tonight" }: Props) {
+export function TonightRow({ row, rank, variant = "tonight", aiReason }: Props) {
+  const hasAiReason = typeof aiReason === "string" && aiReason !== "";
   return (
     <li
       className={`flex items-start gap-md py-md ${kindBarClass(
@@ -87,6 +95,11 @@ export function TonightRow({ row, rank, variant = "tonight" }: Props) {
           {row.option.name}
         </span>
         <RowChips row={row} />
+        {hasAiReason ? (
+          <p className="rounded-md bg-raised px-sm py-xs text-meta text-ink">
+            {aiReason}
+          </p>
+        ) : null}
       </div>
       {variant === "tonight" ? <PickButton optionId={row.option.id} /> : null}
     </li>
