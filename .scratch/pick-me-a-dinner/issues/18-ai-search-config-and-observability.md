@@ -1,6 +1,6 @@
 # 18 — AI search: config, model selection, caching, and observability
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -64,31 +64,31 @@ for clean per-call latencies).
 
 ## Acceptance criteria
 
-- [ ] `aiSearchEnabled()` reports whether `ANTHROPIC_API_KEY` is set; the search
+- [x] `aiSearchEnabled()` reports whether `ANTHROPIC_API_KEY` is set; the search
       box is hidden when the key is absent or the Catalog is empty
-- [ ] `aiSearchAction` returns the typed unavailable with no DB read or model
+- [x] `aiSearchAction` returns the typed unavailable with no DB read or model
       call when `ANTHROPIC_API_KEY` is unset
-- [ ] `AI_MODEL` selects the model, defaulting to `claude-opus-4-7`; Opus 4.6,
+- [x] `AI_MODEL` selects the model, defaulting to `claude-opus-4-7`; Opus 4.6,
       Sonnet 4.6, and Haiku 4.5 are all supported through their respective
       thinking APIs
-- [ ] `AI_EFFORT` accepts `off`/`low`/`medium`/`high` or a bare integer budget
+- [x] `AI_EFFORT` accepts `off`/`low`/`medium`/`high` or a bare integer budget
       for budget-API models; a positive numeric `AI_EFFORT` paired with an Opus
       model throws at `createAiSearchClient`
-- [ ] `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_EFFORT`, and `AI_TAIL_MODE` are in
+- [x] `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_EFFORT`, and `AI_TAIL_MODE` are in
       `.env.example`, documented as optional; `pnpm build` passes with no AI env
       vars set; `lib/check-env.ts` is unchanged
-- [ ] The snapshot body is sent in a `cache_control` ephemeral block with the
+- [x] The snapshot body is sent in a `cache_control` ephemeral block with the
       query trailing it uncached
-- [ ] Each model call emits one structured `ai_search` JSON log line (query
+- [x] Each model call emits one structured `ai_search` JSON log line (query
       length only, model, tail mode, thinking descriptor, latency, outcome,
       result count, token usage) on both the ok and the fallback path
-- [ ] `scripts/ai-search-eval.ts` runs a search from the CLI, builds the
+- [x] `scripts/ai-search-eval.ts` runs a search from the CLI, builds the
       snapshot as `aiSearchAction` does, and supports `--snapshot`, `--mode=`,
       and `--compare`/`--serial`
-- [ ] Unit tests cover `aiSearchEnabled()`, the numeric-`AI_EFFORT`-on-Opus
+- [x] Unit tests cover `aiSearchEnabled()`, the numeric-`AI_EFFORT`-on-Opus
       throw, and the log-line shape on both paths; a screen-level test covers
       the search box hidden when search is not enabled
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
 
 ## Blocked by

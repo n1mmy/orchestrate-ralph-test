@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { aiSearchEnabled } from "@/lib/ai-search";
 import { getTodayRejections, getTonightData } from "@/db/queries";
 import { today as todaySqlDate } from "@/lib/local-day";
 import { epochDayFromSqlDate } from "@/lib/local-day";
@@ -86,6 +87,17 @@ export default async function HomePage() {
   // this from a genuinely empty Catalog keeps the screen from going blank.
   const allRejected = picker.length > 0 && visiblePicker.length === 0;
 
+  // AI search is gated on **both** the Anthropic API key and a non-empty
+  // Catalog. The key check mirrors `placesEnabled()` — when it's absent the
+  // search box vanishes entirely so Tonight reads as v1, and the upstream
+  // `aiSearchAction` short-circuits to `AI_SEARCH_UNAVAILABLE` without any
+  // DB read or model call. An empty Catalog already redirects above; this
+  // branch is reached only when `options.length > 0`, so `searchEnabled` is
+  // really the API-key gate. `lib/check-env.ts` is intentionally unchanged —
+  // `ANTHROPIC_API_KEY` is optional (absent → feature hidden) and does not
+  // belong in the hard-required boot set.
+  const searchEnabled = aiSearchEnabled() && options.length > 0;
+
   return (
     <main className="column">
       <TonightScreen
@@ -93,6 +105,7 @@ export default async function HomePage() {
         pickerRows={visiblePicker}
         rejectedTonight={todayRejections}
         allRejected={allRejected}
+        searchEnabled={searchEnabled}
       />
     </main>
   );

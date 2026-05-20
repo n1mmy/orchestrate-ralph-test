@@ -3,15 +3,22 @@ import {
   AI_SEARCH_UNAVAILABLE,
   EFFORT_BUDGET_TOKENS,
   MAX_RATIONALE_LENGTH,
+  MODEL_DEFAULT,
   REQUEST_TIMEOUT_MS,
+  aiSearchEnabled,
   buildSnapshot,
   buildSystemPrompt,
   createAiSearchClient,
   isAdaptiveModel,
   parseAndValidate,
   planThinking,
+  planThinkingChoice,
   resolveEffort,
+  resolveEffortChoice,
+  resolveModel,
   resolveTailMode,
+  thinkingDescriptor,
+  type AiSearchLogLine,
   type SnapshotLogEntry,
   type SnapshotOption,
   type SnapshotRejection,
@@ -1040,5 +1047,444 @@ describe("createAiSearchClient — Opus 4.7 adaptive path", () => {
     await client.search(input);
     const sentBody = JSON.parse(calls[0]!.init!.body as string);
     expect(sentBody.system).toMatch(/OMIT|omit/);
+  });
+});
+
+/**
+ * `aiSearchEnabled` — the config gate. Mirrors `placesEnabled()`: returns
+ * `true` only when `ANTHROPIC_API_KEY` is set to a non-empty string. An
+ * absent, empty, or whitespace-only value resolves to `false`, which the
+ * Tonight page reads to hide the search box entirely.
+ */
+describe("aiSearchEnabled", () => {
+  it("returns true when ANTHROPIC_API_KEY is set to a non-empty string", () => {
+    expect(aiSearchEnabled({ ANTHROPIC_API_KEY: "sk-test-1" })).toBe(true);
+  });
+
+  it("returns false when ANTHROPIC_API_KEY is unset", () => {
+    expect(aiSearchEnabled({})).toBe(false);
+  });
+
+  it("returns false when ANTHROPIC_API_KEY is an empty string", () => {
+    expect(aiSearchEnabled({ ANTHROPIC_API_KEY: "" })).toBe(false);
+  });
+
+  it("returns false when ANTHROPIC_API_KEY is whitespace only", () => {
+    expect(aiSearchEnabled({ ANTHROPIC_API_KEY: "   " })).toBe(false);
+  });
+});
+
+/**
+ * `resolveModel` — `AI_MODEL` env var reader. Defaults to `MODEL_DEFAULT`
+ * (`claude-opus-4-7`), trims whitespace, treats an empty value as unset.
+ */
+describe("resolveModel", () => {
+  it("defaults to MODEL_DEFAULT when AI_MODEL is unset", () => {
+    expect(resolveModel({})).toBe(MODEL_DEFAULT);
+    expect(MODEL_DEFAULT).toBe("claude-opus-4-7");
+  });
+
+  it("returns the env value when AI_MODEL is set", () => {
+    expect(resolveModel({ AI_MODEL: "claude-sonnet-4-6" })).toBe(
+      "claude-sonnet-4-6",
+    );
+    expect(resolveModel({ AI_MODEL: "claude-haiku-4-5" })).toBe(
+      "claude-haiku-4-5",
+    );
+  });
+
+  it("trims whitespace", () => {
+    expect(resolveModel({ AI_MODEL: "  claude-sonnet-4-6  " })).toBe(
+      "claude-sonnet-4-6",
+    );
+  });
+
+  it("falls back to the default for an empty or whitespace value", () => {
+    expect(resolveModel({ AI_MODEL: "" })).toBe(MODEL_DEFAULT);
+    expect(resolveModel({ AI_MODEL: "   " })).toBe(MODEL_DEFAULT);
+  });
+});
+
+/**
+ * `resolveEffortChoice` — the `AI_EFFORT` reader with the numeric escape
+ * hatch. Returns a `{ kind: "level", effort }` for the four canonical
+ * levels, a `{ kind: "budget", tokens }` for a positive integer (floored at
+ * 1024), and `{ kind: "level", effort: "off" }` for a literal `0` or
+ * negative integer.
+ */
+describe("resolveEffortChoice", () => {
+  it("recognises the canonical levels", () => {
+    expect(resolveEffortChoice({ AI_EFFORT: "low" })).toEqual({
+      kind: "level",
+      effort: "low",
+    });
+    expect(resolveEffortChoice({ AI_EFFORT: "HIGH" })).toEqual({
+      kind: "level",
+      effort: "high",
+    });
+  });
+
+  it("falls back to low when AI_EFFORT is unset or unrecognised", () => {
+    expect(resolveEffortChoice({})).toEqual({ kind: "level", effort: "low" });
+    expect(resolveEffortChoice({ AI_EFFORT: "extreme" })).toEqual({
+      kind: "level",
+      effort: "low",
+    });
+  });
+
+  it("treats a bare positive integer as budget_tokens (floor 1024)", () => {
+    expect(resolveEffortChoice({ AI_EFFORT: "2048" })).toEqual({
+      kind: "budget",
+      tokens: 2048,
+    });
+    expect(resolveEffortChoice({ AI_EFFORT: "500" })).toEqual({
+      kind: "budget",
+      tokens: 1024,
+    });
+    expect(resolveEffortChoice({ AI_EFFORT: "1024" })).toEqual({
+      kind: "budget",
+      tokens: 1024,
+    });
+  });
+
+  it("treats a literal 0 as off — no thinking block", () => {
+    expect(resolveEffortChoice({ AI_EFFORT: "0" })).toEqual({
+      kind: "level",
+      effort: "off",
+    });
+  });
+});
+
+/**
+ * `planThinkingChoice` — the richer planner that accepts the numeric escape
+ * hatch. The level path delegates to `planThinking`; the numeric path emits
+ * a budget block directly.
+ */
+describe("planThinkingChoice", () => {
+  it("delegates to planThinking for the level path", () => {
+    expect(
+      planThinkingChoice("claude-sonnet-4-6", {
+        kind: "level",
+        effort: "low",
+      }),
+    ).toEqual(planThinking("claude-sonnet-4-6", "low"));
+  });
+
+  it("emits a budget block directly for the numeric path", () => {
+    expect(
+      planThinkingChoice("claude-sonnet-4-6", { kind: "budget", tokens: 2048 }),
+    ).toEqual({
+      kind: "budget",
+      thinking: { type: "enabled", budget_tokens: 2048 },
+    });
+  });
+});
+
+/** `thinkingDescriptor` — compact, log-friendly representation of the
+ * resolved knob. */
+describe("thinkingDescriptor", () => {
+  it("renders the four canonical levels", () => {
+    expect(thinkingDescriptor({ kind: "level", effort: "off" })).toBe("off");
+    expect(thinkingDescriptor({ kind: "level", effort: "low" })).toBe(
+      "effort:low",
+    );
+    expect(thinkingDescriptor({ kind: "level", effort: "high" })).toBe(
+      "effort:high",
+    );
+  });
+
+  it("renders the numeric budget", () => {
+    expect(thinkingDescriptor({ kind: "budget", tokens: 2048 })).toBe(
+      "budget:2048",
+    );
+  });
+});
+
+/**
+ * `createAiSearchClient` — config validation. A positive numeric `AI_EFFORT`
+ * paired with an adaptive (Opus 4.7) model is a misconfiguration: the
+ * adaptive API doesn't take a `budget_tokens` knob, so we throw loudly at
+ * client construction rather than silently coercing.
+ */
+describe("createAiSearchClient — config validation", () => {
+  it("throws when a numeric AI_EFFORT is paired with an Opus model", () => {
+    expect(() =>
+      createAiSearchClient("k", {
+        model: "claude-opus-4-7",
+        effortChoice: { kind: "budget", tokens: 2048 },
+      }),
+    ).toThrow(/numeric AI_EFFORT.*adaptive.*claude-opus-4-7/i);
+  });
+
+  it("throws for a dated Opus 4.7 snapshot too — anything matching the adaptive family", () => {
+    expect(() =>
+      createAiSearchClient("k", {
+        model: "claude-opus-4-7-20260101",
+        effortChoice: { kind: "budget", tokens: 4096 },
+      }),
+    ).toThrow();
+  });
+
+  it("does NOT throw when a numeric AI_EFFORT is paired with a budget-API model", () => {
+    expect(() =>
+      createAiSearchClient("k", {
+        model: "claude-sonnet-4-6",
+        effortChoice: { kind: "budget", tokens: 2048 },
+      }),
+    ).not.toThrow();
+    expect(() =>
+      createAiSearchClient("k", {
+        model: "claude-haiku-4-5",
+        effortChoice: { kind: "budget", tokens: 1024 },
+      }),
+    ).not.toThrow();
+  });
+
+  it("does NOT throw when a canonical level is paired with an Opus model", () => {
+    expect(() =>
+      createAiSearchClient("k", {
+        model: "claude-opus-4-7",
+        effortChoice: { kind: "level", effort: "high" },
+      }),
+    ).not.toThrow();
+  });
+
+  it("budget-token numeric path lands in the request body as budget_tokens", async () => {
+    const calls: Array<{ init?: RequestInit }> = [];
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      calls.push({ init });
+      return new Response(
+        JSON.stringify({
+          content: [
+            {
+              type: "tool_use",
+              name: "rank_options",
+              input: { ranking: [] },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+      effortChoice: { kind: "budget", tokens: 3000 },
+    });
+    await client.search({
+      options: [],
+      log: [],
+      rejections: [],
+      today: "2026-05-20",
+      query: "q",
+    });
+    const sentBody = JSON.parse(calls[0]!.init!.body as string);
+    expect(sentBody.thinking).toEqual({
+      type: "enabled",
+      budget_tokens: 3000,
+    });
+  });
+});
+
+/**
+ * Prompt caching — the snapshot body sits in a `cache_control: ephemeral`
+ * block; the query trails it uncached. The cache marker on a `messages`
+ * content block extends the cached prefix backwards through the system
+ * prompt and the tool list.
+ */
+describe("createAiSearchClient — prompt caching", () => {
+  it("sends the snapshot body in a cache_control ephemeral block with the query trailing it uncached", async () => {
+    const calls: Array<{ init?: RequestInit }> = [];
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      calls.push({ init });
+      return new Response(
+        JSON.stringify({
+          content: [
+            {
+              type: "tool_use",
+              name: "rank_options",
+              input: { ranking: [] },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+    });
+    await client.search({
+      options: [],
+      log: [],
+      rejections: [],
+      today: "2026-05-20",
+      query: "something light",
+    });
+    const sentBody = JSON.parse(calls[0]!.init!.body as string);
+    // The single user message carries an array of two text blocks: the
+    // snapshot body with `cache_control`, and the query without.
+    const message = sentBody.messages[0];
+    expect(Array.isArray(message.content)).toBe(true);
+    expect(message.content).toHaveLength(2);
+    expect(message.content[0].cache_control).toEqual({ type: "ephemeral" });
+    expect(message.content[1].cache_control).toBeUndefined();
+    // The snapshot block carries the today/options/log/rejections; the
+    // query block carries only the query.
+    const snapshotBlock = JSON.parse(message.content[0].text);
+    expect(snapshotBlock).toHaveProperty("today");
+    expect(snapshotBlock).toHaveProperty("options");
+    expect(snapshotBlock).not.toHaveProperty("query");
+    const queryBlock = JSON.parse(message.content[1].text);
+    expect(queryBlock).toHaveProperty("query");
+    expect(queryBlock).not.toHaveProperty("today");
+  });
+});
+
+/**
+ * Observability — every model call emits one structured `ai_search` JSON log
+ * line on both the ok and the fallback path. The line carries the query
+ * **length** (never the text), model id, tail mode, the thinking descriptor,
+ * latency in ms, outcome, result count, and — when the call returned a
+ * response — its token usage.
+ */
+describe("createAiSearchClient — structured log line", () => {
+  const input = {
+    options: [
+      {
+        id: "00000000-0000-0000-0000-000000000001",
+        name: "Alice's Pizza",
+        kind: "restaurant" as const,
+        tags: [],
+        notes: null,
+      },
+    ],
+    log: [],
+    rejections: [],
+    today: "2026-05-20",
+    query: "something light",
+  };
+
+  it("emits one log line on the ok path with the query length (not the text) and the token usage", async () => {
+    const captured: AiSearchLogLine[] = [];
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          content: [
+            {
+              type: "tool_use",
+              name: "rank_options",
+              input: { ranking: [{ id: 1, reason: "habit fit" }] },
+            },
+          ],
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 50,
+            cache_read_input_tokens: 800,
+            cache_creation_input_tokens: 0,
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+      effortChoice: { kind: "level", effort: "low" },
+      logger: (line) => captured.push(line),
+    });
+    const result = await client.search(input);
+    expect(result.ok).toBe(true);
+    expect(captured).toHaveLength(1);
+    const line = captured[0]!;
+    expect(line.event).toBe("ai_search");
+    expect(line.queryLength).toBe(input.query.length);
+    expect(line.model).toBe("claude-sonnet-4-6");
+    expect(line.thinking).toBe("effort:low");
+    expect(line.outcome).toBe("ok");
+    expect(line.resultCount).toBe(1);
+    expect(line.tailMode).toBe("pithy");
+    expect(typeof line.latencyMs).toBe("number");
+    expect(line.latencyMs).toBeGreaterThanOrEqual(0);
+    expect(line.tokens).toEqual({
+      input: 1000,
+      output: 50,
+      cacheRead: 800,
+      cacheCreation: 0,
+    });
+    // The log line never includes the query text.
+    expect(JSON.stringify(line)).not.toContain("something light");
+  });
+
+  it("emits one log line on the fallback path (HTTP error) with outcome=fallback and no token usage", async () => {
+    const captured: AiSearchLogLine[] = [];
+    const fetchImpl = vi.fn(async () =>
+      new Response(JSON.stringify({ error: "rate limit" }), {
+        status: 429,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-haiku-4-5",
+      effortChoice: { kind: "budget", tokens: 2048 },
+      logger: (line) => captured.push(line),
+    });
+    const result = await client.search(input);
+    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
+    expect(captured).toHaveLength(1);
+    const line = captured[0]!;
+    expect(line.event).toBe("ai_search");
+    expect(line.queryLength).toBe(input.query.length);
+    expect(line.model).toBe("claude-haiku-4-5");
+    expect(line.thinking).toBe("budget:2048");
+    expect(line.outcome).toBe("fallback");
+    expect(line.resultCount).toBe(0);
+    // No response was readable as a usage carrier — the tokens field is
+    // omitted.
+    expect(line.tokens).toBeUndefined();
+  });
+
+  it("emits one log line on the fallback path (network error) with no token usage", async () => {
+    const captured: AiSearchLogLine[] = [];
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError("network down");
+    });
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+      logger: (line) => captured.push(line),
+    });
+    await client.search(input);
+    expect(captured).toHaveLength(1);
+    expect(captured[0]!.outcome).toBe("fallback");
+    expect(captured[0]!.tokens).toBeUndefined();
+  });
+
+  it("emits one log line per call — no extras, no drops", async () => {
+    const captured: AiSearchLogLine[] = [];
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          content: [
+            { type: "tool_use", name: "rank_options", input: { ranking: [] } },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const client = createAiSearchClient("k", {
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      model: "claude-sonnet-4-6",
+      logger: (line) => captured.push(line),
+    });
+    await client.search(input);
+    await client.search(input);
+    await client.search(input);
+    expect(captured).toHaveLength(3);
+    for (const line of captured) {
+      expect(line.event).toBe("ai_search");
+      expect(line.outcome).toBe("ok");
+    }
   });
 });

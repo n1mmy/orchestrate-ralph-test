@@ -48,6 +48,7 @@ export function TonightScreen({
   pickerRows,
   rejectedTonight = [],
   allRejected = false,
+  searchEnabled = true,
 }: {
   tonightsDinner: TonightsDinnerEntry[];
   pickerRows: TonightRowData[];
@@ -66,6 +67,16 @@ export function TonightScreen({
    * state rather than a blank screen. Defaults to `false`.
    */
   allRejected?: boolean;
+  /**
+   * Whether AI search is configured and the Catalog is non-empty (ticket 18).
+   * The Tonight page reads `aiSearchEnabled()` (an `ANTHROPIC_API_KEY` gate
+   * mirroring `placesEnabled()`) and passes the resolved flag through. When
+   * `false`, the AI-search form is hidden entirely — Tonight reads as v1.
+   * Defaults to `true` so that existing unit tests (which don't pass the
+   * flag) keep observing the search-form UI; the production caller
+   * (`app/page.tsx`) always passes the resolved value explicitly.
+   */
+  searchEnabled?: boolean;
 }) {
   const decided = tonightsDinner.length > 0;
 
@@ -160,33 +171,55 @@ export function TonightScreen({
           </>
         ) : null}
 
-        <AiSearchBox
-          pickerRows={pickerRows}
-          onRejected={announceRejected}
-          onAiActiveChange={setAiActive}
-        >
-          {pickerRows.length === 0 ? (
-            allRejected ? (
-              <p className="mt-sm text-body text-muted">
-                Every Option has been rejected for tonight. They&apos;ll be back
-                tomorrow.
-              </p>
-            ) : decided ? (
-              <p className="mt-sm text-body text-muted">
-                Every Option is already on tonight&apos;s dinner.
-              </p>
-            ) : null
-          ) : (
-            <PickerFilters
-              tags={tags}
-              tagFilters={tagFilters}
-              hint={hint}
-              onTap={tap}
-              visible={visiblePicker}
-              onRejected={announceRejected}
-            />
-          )}
-        </AiSearchBox>
+        {searchEnabled ? (
+          <AiSearchBox
+            pickerRows={pickerRows}
+            onRejected={announceRejected}
+            onAiActiveChange={setAiActive}
+          >
+            {pickerRows.length === 0 ? (
+              allRejected ? (
+                <p className="mt-sm text-body text-muted">
+                  Every Option has been rejected for tonight. They&apos;ll be back
+                  tomorrow.
+                </p>
+              ) : decided ? (
+                <p className="mt-sm text-body text-muted">
+                  Every Option is already on tonight&apos;s dinner.
+                </p>
+              ) : null
+            ) : (
+              <PickerFilters
+                tags={tags}
+                tagFilters={tagFilters}
+                hint={hint}
+                onTap={tap}
+                visible={visiblePicker}
+                onRejected={announceRejected}
+              />
+            )}
+          </AiSearchBox>
+        ) : pickerRows.length === 0 ? (
+          allRejected ? (
+            <p className="mt-sm text-body text-muted">
+              Every Option has been rejected for tonight. They&apos;ll be back
+              tomorrow.
+            </p>
+          ) : decided ? (
+            <p className="mt-sm text-body text-muted">
+              Every Option is already on tonight&apos;s dinner.
+            </p>
+          ) : null
+        ) : (
+          <PickerFilters
+            tags={tags}
+            tagFilters={tagFilters}
+            hint={hint}
+            onTap={tap}
+            visible={visiblePicker}
+            onRejected={announceRejected}
+          />
+        )}
       </section>
       <p className="sr-only" role="status" aria-live="polite">
         {removedAnnouncement}
