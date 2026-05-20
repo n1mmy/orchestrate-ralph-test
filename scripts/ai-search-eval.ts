@@ -8,7 +8,7 @@
  *
  *  - the active Catalog (`getTonightData`)
  *  - the full Log (`getTonightData`'s `fullLog`)
- *  - the Rejection history (`getAllRejections`)
+ *  - the Rejection history (`getRejections`)
  *  - today's calendar day (`lib/local-day`'s `today`)
  *
  * and builds the snapshot through `buildSnapshot`, so any divergence from
@@ -56,7 +56,7 @@ import {
   type SearchResult,
   type TailMode,
 } from "@/lib/ai-search";
-import { getAllRejections, getTonightData } from "@/db/queries";
+import { getRejections, getTonightData } from "@/db/queries";
 import { today as todaySqlDate } from "@/lib/local-day";
 
 /** A parsed view of the harness's command-line flags. Everything optional. */
@@ -104,7 +104,7 @@ async function loadInputs(query: string) {
   const todaySql = todaySqlDate();
   const [{ options, fullLog }, rejections] = await Promise.all([
     getTonightData(todaySql),
-    getAllRejections(),
+    getRejections(),
   ]);
   return {
     options: options.map((o) => ({
