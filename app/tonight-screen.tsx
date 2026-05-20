@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { TonightRow } from "./tonight-row";
 import { TonightsDinnerBlock } from "./tonights-dinner-block";
+import { deleteRejection } from "./rejection-actions";
 import type { TonightRow as TonightRowData } from "@/lib/ranking";
 import type { TonightsDinnerEntry } from "@/lib/tonights-dinner";
+import type { TodayRejection } from "@/db/queries";
 import {
   type ChipState,
   type KindFilter,
@@ -43,10 +45,19 @@ import {
 export function TonightScreen({
   tonightsDinner,
   pickerRows,
+  rejectedTonight = [],
   allRejected = false,
 }: {
   tonightsDinner: TonightsDinnerEntry[];
   pickerRows: TonightRowData[];
+  /**
+   * Today's Rejections, the same `TodayRejection[]` `app/page.tsx` already
+   * loads via `getTodayRejections` for the suppression filter. Passed through
+   * so the screen-level `RejectedTonightDisclosure` pinned at the bottom can
+   * list them with a "Bring back" undo, with no new query. Defaults to an
+   * empty array — the disclosure renders nothing in that case.
+   */
+  rejectedTonight?: TodayRejection[];
   /**
    * True when every remaining picker row has been rejected for today —
    * `pickerRows` is empty but the underlying ranked list was not. The
@@ -167,7 +178,95 @@ export function TonightScreen({
       <p className="sr-only" role="status" aria-live="polite">
         {removedAnnouncement}
       </p>
+
+      {rejectedTonight.length > 0 ? (
+        <RejectedTonightDisclosure rejections={rejectedTonight} />
+      ) : null}
     </>
+  );
+}
+
+/**
+ * The "Rejected tonight (N)" disclosure pinned at the bottom of Tonight (ticket
+ * 20). Rendered only when today has at least one Rejection — until then it
+ * costs no screen space. Collapsed by default; the heading button carries
+ * `aria-expanded` and the literal label `Rejected tonight (N)` so a member can
+ * tell at a glance whether anything has been rejected.
+ *
+ * Expanded, the disclosure renders a `<ul>` of today's Rejections — each
+ * Option name with the reason on a muted second line when one was given, plus
+ * a "Bring back" button that calls `deleteRejection(rejectionId)` inside a
+ * `useTransition`. The shared delete action returns the Option to tonight's
+ * list immediately on revalidation; because the record is gone, not merely
+ * expired, a mis-tapped Rejection never reaches AI search and never teaches
+ * the model anything (PRD §Rejections).
+ *
+ * The disclosure offers "Bring back" only for today's Rejections — managing
+ * the historical Rejection log is out of scope for this ticket. The toggle
+ * and every "Bring back" control are keyboard-operable, share the picker's
+ * 44px touch target, and are disabled while a delete is in flight.
+ */
+function RejectedTonightDisclosure({
+  rejections,
+}: {
+  rejections: TodayRejection[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function bringBack(rejectionId: string) {
+    setError(null);
+    startTransition(async () => {
+      const result = await deleteRejection(rejectionId);
+      if (!result.ok) {
+        setError(result.error);
+      }
+    });
+  }
+
+  return (
+    <section className="mt-lg border-t border-line pt-md">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="min-h-[44px] w-full rounded-control bg-surface px-md py-xs text-left text-meta font-emphasis text-ink hover:bg-raised"
+      >
+        Rejected tonight ({rejections.length})
+      </button>
+      {open ? (
+        <ul className="mt-sm flex flex-col gap-xs">
+          {rejections.map((r) => (
+            <li
+              key={r.id}
+              className="flex items-start justify-between gap-md rounded-control border border-line bg-surface px-md py-xs"
+            >
+              <div className="flex flex-col">
+                <span className="text-body text-ink">{r.optionName}</span>
+                {r.reason ? (
+                  <span className="text-meta text-muted">{r.reason}</span>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => bringBack(r.id)}
+                disabled={pending}
+                aria-label={`Bring back ${r.optionName}`}
+                className="min-h-[44px] rounded-control border border-line bg-surface px-md py-xs text-meta text-ink hover:bg-raised disabled:opacity-80"
+              >
+                Bring back
+              </button>
+            </li>
+          ))}
+          {error ? (
+            <p className="text-meta text-danger" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </ul>
+      ) : null}
+    </section>
   );
 }
 

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { rejections } from "@/db/schema";
 import { authedAction } from "@/lib/authed-action";
@@ -72,6 +73,42 @@ export const rejectOption = authedAction(
     // `/catalog/[id]` is revalidated as a dynamic route segment so every
     // Option detail page invalidates at once; the route lands in a later
     // phase (ticket 22) and the call is a harmless no-op until then.
+    revalidatePath("/catalog/[id]", "page");
+    return ok();
+  },
+);
+
+/**
+ * Delete a Rejection row by id. The single write path for "Bring back" on the
+ * Rejected-tonight disclosure (ticket 20): the row is removed entirely rather
+ * than expired, so a mis-tapped Rejection never reaches AI search and never
+ * teaches the model anything. Bringing back is the same row delete regardless
+ * of how the Household reached it, so there is no separate
+ * `bringBackRejection` — one shared `authedAction`-wrapped action covers both.
+ *
+ * Thin by design — no logic beyond the delete — following the existing
+ * `pickTonight` / `rejectOption` pattern. A malformed uuid (`22P02`) is
+ * mapped inline to the same "no longer available" copy the reject path uses;
+ * a delete that matches no rows is treated as already-deleted and returns
+ * `ok()` (a second tap of "Bring back" after revalidation is a no-op, not an
+ * error). Anything else rethrows so Next's error boundary handles it.
+ *
+ * The same three views the reject path revalidates are revalidated here so
+ * the Option returns to tonight's list immediately on the next render.
+ */
+export const deleteRejection = authedAction(
+  async (rejectionId: string): Promise<ActionResult> => {
+    try {
+      await db.delete(rejections).where(eq(rejections.id, rejectionId));
+    } catch (error) {
+      const code = pgCode(error);
+      if (code === "22P02") {
+        return err("That option is no longer available");
+      }
+      throw error;
+    }
+    revalidatePath("/");
+    revalidatePath("/log");
     revalidatePath("/catalog/[id]", "page");
     return ok();
   },
