@@ -1,16 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-// `deleteRejection` is a "use server" action; the test stubs the module so the
-// disclosure's "Bring back" button can be observed without a DB.
+// `deleteRejection` and `aiSearchAction` are "use server" actions; the tests
+// stub the modules so the screen-level UI can be observed without a DB.
 const deleteRejection = vi.fn();
 vi.mock("./rejection-actions", () => ({
   deleteRejection: (...args: unknown[]) => deleteRejection(...args),
   rejectOption: vi.fn(),
 }));
 
+const aiSearchAction = vi.fn();
+vi.mock("./tonight-actions", () => ({
+  aiSearchAction: (...args: unknown[]) => aiSearchAction(...args),
+}));
+
 import { TonightScreen } from "./tonight-screen";
 import type { TodayRejection } from "@/db/queries";
+import type { TonightRow as TonightRowData } from "@/lib/ranking";
 
 /**
  * Tonight screen tests. The split between picker mode and decided mode is
@@ -167,6 +173,132 @@ describe("RejectedTonightDisclosure (rendered by TonightScreen)", () => {
     await waitFor(() => {
       expect(
         screen.getByText("That option is no longer available"),
+      ).toBeDefined();
+    });
+  });
+});
+
+/**
+ * AI search on Tonight (ticket 14) — a search box inside the picker that swaps
+ * the deterministic ranked list for an AI-ranked result. A Clear control (or
+ * any page reload) restores the deterministic list.
+ */
+describe("AI search (rendered by TonightScreen)", () => {
+  const pickerRows: TonightRowData[] = [
+    {
+      option: {
+        id: "opt-a",
+        name: "Alice's Pizza",
+        kind: "restaurant",
+        tags: ["pizza"],
+        url: null,
+        phone: null,
+      },
+      score: 10,
+      tags: [],
+      recencyDays: 5,
+      neverEaten: false,
+    },
+    {
+      option: {
+        id: "opt-b",
+        name: "Banh Mi",
+        kind: "restaurant",
+        tags: ["sandwich"],
+        url: null,
+        phone: null,
+      },
+      score: 8,
+      tags: [],
+      recencyDays: 12,
+      neverEaten: false,
+    },
+  ];
+
+  it("renders a search input and a Search button above the picker", () => {
+    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+    expect(screen.getByRole("searchbox", { name: "AI search query" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Search" })).toBeDefined();
+  });
+
+  it("submitting swaps the deterministic list for an AI-ranked result with the AI rationale on each row", async () => {
+    aiSearchAction.mockReset();
+    aiSearchAction.mockResolvedValueOnce({
+      ok: true,
+      results: [
+        { optionId: "opt-b", reason: "Light and fast for a Wednesday night." },
+        { optionId: "opt-a", reason: "Tag pizza is overdue." },
+      ],
+    });
+    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+
+    // Before submit: deterministic order is Alice (rank 1), Banh Mi (rank 2).
+    const itemsBefore = screen.getAllByRole("listitem");
+    expect(itemsBefore[0]?.textContent).toContain("Alice's Pizza");
+    expect(itemsBefore[1]?.textContent).toContain("Banh Mi");
+
+    const input = screen.getByRole("searchbox", { name: "AI search query" });
+    fireEvent.change(input, { target: { value: "something light" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    await waitFor(() => {
+      expect(aiSearchAction).toHaveBeenCalledWith("something light");
+    });
+
+    await waitFor(() => {
+      // After submit: Banh Mi is rank 1, then Alice — the AI ordering.
+      const itemsAfter = screen.getAllByRole("listitem");
+      expect(itemsAfter[0]?.textContent).toContain("Banh Mi");
+      expect(itemsAfter[0]?.textContent).toContain(
+        "Light and fast for a Wednesday night.",
+      );
+      expect(itemsAfter[1]?.textContent).toContain("Alice's Pizza");
+      expect(itemsAfter[1]?.textContent).toContain("Tag pizza is overdue.");
+    });
+  });
+
+  it("allows an empty query and still invokes aiSearchAction", async () => {
+    aiSearchAction.mockReset();
+    aiSearchAction.mockResolvedValueOnce({ ok: true, results: [] });
+    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => {
+      expect(aiSearchAction).toHaveBeenCalledWith("");
+    });
+  });
+
+  it("Clear restores the deterministic list", async () => {
+    aiSearchAction.mockReset();
+    aiSearchAction.mockResolvedValueOnce({
+      ok: true,
+      results: [{ optionId: "opt-b", reason: "Habit fit." }],
+    });
+    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => {
+      const items = screen.getAllByRole("listitem");
+      expect(items).toHaveLength(1);
+      expect(items[0]?.textContent).toContain("Banh Mi");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    // Deterministic list is back: both rows, in Score-rank order.
+    const itemsRestored = screen.getAllByRole("listitem");
+    expect(itemsRestored).toHaveLength(2);
+    expect(itemsRestored[0]?.textContent).toContain("Alice's Pizza");
+  });
+
+  it("renders an inline message when the action returns AI_SEARCH_UNAVAILABLE", async () => {
+    aiSearchAction.mockReset();
+    aiSearchAction.mockResolvedValueOnce({ ok: false });
+    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => {
+      expect(
+        screen.getByText("AI search isn't available right now"),
       ).toBeDefined();
     });
   });

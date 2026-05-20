@@ -1,6 +1,6 @@
 # 14 — AI search: end-to-end skeleton
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -83,35 +83,35 @@ yet hide in AI mode.
 
 ## Acceptance criteria
 
-- [ ] A search box on Tonight inside the Picker; submitting a query (Enter or a
+- [x] A search box on Tonight inside the Picker; submitting a query (Enter or a
       Search button, empty query allowed) swaps the deterministic list for an
       AI-ranked result in place
-- [ ] `lib/ai-search` exposes pure `buildSnapshot` and `parseAndValidate`, plus
+- [x] `lib/ai-search` exposes pure `buildSnapshot` and `parseAndValidate`, plus
       `createAiSearchClient` that constructs the Anthropic client lazily so
       `pnpm build` needs no env vars
-- [ ] `buildSnapshot` emits Options alphabetically by name, numbers them 1-based
+- [x] `buildSnapshot` emits Options alphabetically by name, numbers them 1-based
       by that order, refers to Options by integer everywhere, carries **no
       pre-computed recency**, excludes the Places fields, and wraps all
       Household text in `<household-text>` delimiters; it returns `idByIndex`
-- [ ] The snapshot `log` is the full Log (past and future-dated Planned
+- [x] The snapshot `log` is the full Log (past and future-dated Planned
       dinners), newest dinner first; today and each Log date carry a weekday
-- [ ] The Anthropic call uses tool-use with the strict `rank_options` ordered
+- [x] The Anthropic call uses tool-use with the strict `rank_options` ordered
       `{ id, reason }` schema; `parseAndValidate` maps each integer back to its
       UUID and drops any non-candidate integer (a hallucination)
-- [ ] `getTonightData` returns Option `notes` and Log-entry `note`; the ranking
+- [x] `getTonightData` returns Option `notes` and Log-entry `note`; the ranking
       input is unchanged and `rankTonight` still passes its tests
-- [ ] `aiSearchAction` is `authedAction`-wrapped, builds the snapshot from the
+- [x] `aiSearchAction` is `authedAction`-wrapped, builds the snapshot from the
       active Catalog, the full Log, and the Rejections, and returns the
       validated ordered result
-- [ ] AI result rows show the AI rationale (`aiReason`) instead of the
+- [x] AI result rows show the AI rationale (`aiReason`) instead of the
       deterministic prose and are pickable; clearing the search or reloading
       restores the deterministic list
-- [ ] Unit tests (`lib/ai-search.test.ts`) cover the snapshot builder (ordering,
+- [x] Unit tests (`lib/ai-search.test.ts`) cover the snapshot builder (ordering,
       integer numbering, field selection, delimiters) and `parseAndValidate`
       (hallucinated integer dropped, ordering preserved); a screen-level test
       (`app/tonight-screen.test.tsx`) covers submit-swaps / clear-restores and
       introduces React Testing Library
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and
       `pnpm build` passes with no env vars set
 
 ## Blocked by

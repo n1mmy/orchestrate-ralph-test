@@ -31,10 +31,19 @@ export function TonightRow({
   rank,
   row,
   onRejected,
+  aiReason,
 }: {
   rank: number;
   row: TonightRowData;
   onRejected?: (optionName: string) => void;
+  /**
+   * The AI rationale on an AI-search result row (ticket 14). When set, the
+   * row renders the rationale on a neutral `raised` surface beneath the chip
+   * row in place of the deterministic prose — the chip row itself stays for
+   * continuity. `undefined` (the default) is the deterministic-list path and
+   * renders nothing extra.
+   */
+  aiReason?: string;
 }) {
   const { option, recencyDays, neverEaten, tags } = row;
   return (
@@ -53,6 +62,11 @@ export function TonightRow({
           neverEaten={neverEaten}
           tags={tags}
         />
+        {aiReason ? (
+          <p className="mt-xs rounded-control bg-raised px-sm py-xs text-meta text-ink">
+            {aiReason}
+          </p>
+        ) : null}
       </div>
       <div className="flex flex-col items-end gap-xs">
         <PickButton optionId={option.id} />
