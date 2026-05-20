@@ -1,6 +1,10 @@
 import { AddDinnerForm } from "./add-dinner-form";
 import { LogEntryRow } from "./log-entry-row";
-import { dateLabel } from "./date-label";
+import {
+  formatDinnerDate,
+  groupByDate,
+  splitDinners,
+} from "@/lib/dinner-grouping";
 import type { LogEntry, LogOptionChoice } from "@/db/queries";
 
 /**
@@ -24,6 +28,10 @@ import type { LogEntry, LogOptionChoice } from "@/db/queries";
  * The cap on Upcoming is high enough to comfortably show a normal week or
  * two of planning. Once the Household has more than that planned, the strip
  * truncates with a small remainder count rather than scrolling forever.
+ *
+ * Grouping and the date label live in `lib/dinner-grouping.ts` — the same
+ * module the Option detail page's merged History section consumes, so both
+ * views build their per-date buckets the same way.
  */
 const UPCOMING_CAP = 14;
 
@@ -36,12 +44,19 @@ export function LogScreen({
   optionChoices: LogOptionChoice[];
   todaySql: string;
 }) {
-  const { upcoming, history } = splitByDay(entries, todaySql);
+  // `splitDinners` preserves input order within each bucket. The query
+  // returns the entries newest-first, which is the order History needs; for
+  // Upcoming the Household wants soonest-first, so we re-sort ascending.
+  const split = splitDinners(entries, (entry) => entry.eatenOn, todaySql);
+  const upcoming = [...split.upcoming].sort((a, b) =>
+    a.eatenOn.localeCompare(b.eatenOn),
+  );
+  const history = split.history;
   const upcomingShown = upcoming.slice(0, UPCOMING_CAP);
   const upcomingHidden = upcoming.length - upcomingShown.length;
 
-  const upcomingGroups = groupByDate(upcomingShown);
-  const historyGroups = groupByDate(history);
+  const upcomingGroups = groupByDate(upcomingShown, (e) => e.eatenOn);
+  const historyGroups = groupByDate(history, (e) => e.eatenOn);
 
   const empty = entries.length === 0;
 
@@ -67,8 +82,9 @@ export function LogScreen({
           <ol className="flex flex-col">
             {upcomingGroups.map((group) => (
               <DateGroup
-                key={group.eatenOn}
-                group={group}
+                key={group.date}
+                date={group.date}
+                entries={group.items}
                 todaySql={todaySql}
                 optionChoices={optionChoices}
               />
@@ -90,8 +106,9 @@ export function LogScreen({
           <ol className="flex flex-col">
             {historyGroups.map((group) => (
               <DateGroup
-                key={group.eatenOn}
-                group={group}
+                key={group.date}
+                date={group.date}
+                entries={group.items}
                 todaySql={todaySql}
                 optionChoices={optionChoices}
               />
@@ -103,27 +120,24 @@ export function LogScreen({
   );
 }
 
-type DateGroupData = {
-  eatenOn: string;
-  entries: LogEntry[];
-};
-
 function DateGroup({
-  group,
+  date,
+  entries,
   todaySql,
   optionChoices,
 }: {
-  group: DateGroupData;
+  date: string;
+  entries: LogEntry[];
   todaySql: string;
   optionChoices: LogOptionChoice[];
 }) {
   return (
     <li className="border-b border-line py-sm">
       <h3 className="pb-xs text-meta font-semibold tabular-nums text-muted">
-        {dateLabel(group.eatenOn, todaySql)}
+        {formatDinnerDate(date, todaySql)}
       </h3>
       <ul className="flex flex-col gap-xs">
-        {group.entries.map((entry) => (
+        {entries.map((entry) => (
           <LogEntryRow
             key={entry.id}
             entry={entry}
@@ -133,44 +147,4 @@ function DateGroup({
       </ul>
     </li>
   );
-}
-
-/**
- * Split a date-descending list of Log entries into Upcoming (after today) and
- * history (today and earlier). Upcoming is re-sorted ascending (soonest
- * first), per CONTEXT.md — the Planned dinner most near is the one the
- * Household most wants to see.
- */
-function splitByDay(
-  entries: LogEntry[],
-  todaySql: string,
-): { upcoming: LogEntry[]; history: LogEntry[] } {
-  const upcoming: LogEntry[] = [];
-  const history: LogEntry[] = [];
-  for (const e of entries) {
-    if (e.eatenOn > todaySql) upcoming.push(e);
-    else history.push(e);
-  }
-  // The DB returns date-descending; reverse Upcoming so soonest comes first.
-  upcoming.sort((a, b) => a.eatenOn.localeCompare(b.eatenOn));
-  return { upcoming, history };
-}
-
-/**
- * Group entries by `eatenOn` into date-keyed buckets while preserving the
- * input order of dates — the caller has already sorted (history descending,
- * Upcoming ascending), so the bucket order matches.
- */
-function groupByDate(entries: LogEntry[]): DateGroupData[] {
-  const groups: DateGroupData[] = [];
-  let current: DateGroupData | null = null;
-  for (const e of entries) {
-    if (!current || current.eatenOn !== e.eatenOn) {
-      current = { eatenOn: e.eatenOn, entries: [e] };
-      groups.push(current);
-    } else {
-      current.entries.push(e);
-    }
-  }
-  return groups;
 }

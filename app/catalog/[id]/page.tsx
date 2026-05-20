@@ -1,9 +1,18 @@
 import { notFound } from "next/navigation";
-import { getOptionById, getOptionLog, getTonightData } from "@/db/queries";
+import {
+  getLogOptionChoices,
+  getOptionById,
+  getOptionLog,
+  getOptionLogEntries,
+  getTonightData,
+  type LogOptionChoice,
+} from "@/db/queries";
 import { today as todaySqlDate, epochDayFromSqlDate } from "@/lib/local-day";
 import { rankOption, type RankOption } from "@/lib/ranking";
+import { formatDinnerDate, groupByDay } from "@/lib/dinner-grouping";
 import { kindBarClass } from "../../kind-bar";
 import { RowChips } from "../../tonight-row";
+import { LogEntryRow } from "../../log/log-entry-row";
 
 /**
  * The Option detail page — `/catalog/[id]`. A `force-dynamic` server
@@ -38,11 +47,14 @@ export default async function OptionDetailPage({
   const todaySql = todaySqlDate();
   const todayEpoch = epochDayFromSqlDate(todaySql);
 
-  const [option, targetLog, tonightData] = await Promise.all([
-    getOptionById(id),
-    getOptionLog(id, todaySql),
-    getTonightData(todaySql),
-  ]);
+  const [option, targetLog, tonightData, optionLogEntries, optionChoices] =
+    await Promise.all([
+      getOptionById(id),
+      getOptionLog(id, todaySql),
+      getTonightData(todaySql),
+      getOptionLogEntries(id),
+      getLogOptionChoices(),
+    ]);
 
   if (!option) notFound();
 
@@ -154,13 +166,79 @@ export default async function OptionDetailPage({
         </section>
       ) : null}
 
-      <section aria-label="History" className="flex flex-col gap-xs">
-        <h2 className="text-meta font-emphasis uppercase tracking-wide text-muted">
-          History
-        </h2>
-        {/* Log & Rejection history — built in tickets 23/24. */}
-      </section>
+      <HistorySection
+        entries={optionLogEntries}
+        optionChoices={optionChoices}
+        todaySql={todaySql}
+      />
     </main>
+  );
+}
+
+/**
+ * The merged **History** section — one date-grouped list interleaving the
+ * Option's Log entries and its Rejections. Built from `groupByDay` so the
+ * Log screen and the detail page share the same grouping and date-label
+ * helpers. Future-dated (Planned) groups render first — the Household sees
+ * "what's coming up for this Option" ahead of realized history — then the
+ * past, newest-first.
+ *
+ * Rejections render after that date's logged dinners within each group;
+ * `getOptionRejections` and the `RejectionRow` component land in ticket 24,
+ * so this slice passes an empty list and the date groups currently carry
+ * only `LogEntryRow`s. The structure is fully in place for 24 to plug in.
+ *
+ * The empty state — no Log entries and no Rejections — reads as one quiet
+ * line, matching the Log screen's "nothing here yet" copy register.
+ */
+function HistorySection({
+  entries,
+  optionChoices,
+  todaySql,
+}: {
+  entries: Awaited<ReturnType<typeof getOptionLogEntries>>;
+  optionChoices: LogOptionChoice[];
+  todaySql: string;
+}) {
+  const { upcoming, history } = groupByDay({
+    entries,
+    rejections: [],
+    todaySql,
+  });
+  const activity = [...upcoming].reverse().concat(history);
+  const isEmpty = activity.length === 0;
+
+  return (
+    <section aria-label="History" className="flex flex-col gap-xs">
+      <h2 className="text-meta font-emphasis uppercase tracking-wide text-muted">
+        History
+      </h2>
+      {isEmpty ? (
+        <p className="text-body text-muted">
+          Nothing logged or rejected yet for this Option.
+        </p>
+      ) : (
+        <ol className="flex flex-col">
+          {activity.map((day) => (
+            <li key={day.date} className="border-b border-line py-sm">
+              <h3 className="pb-xs text-meta font-semibold tabular-nums text-muted">
+                {formatDinnerDate(day.date, todaySql)}
+              </h3>
+              <ul className="flex flex-col gap-xs">
+                {day.entries.map((entry) => (
+                  <LogEntryRow
+                    key={entry.id}
+                    entry={entry}
+                    optionChoices={optionChoices}
+                  />
+                ))}
+                {/* Rejections render here — `RejectionRow` lands in ticket 24. */}
+              </ul>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   );
 }
 
