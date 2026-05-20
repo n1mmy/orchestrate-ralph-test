@@ -1,6 +1,6 @@
 # 33 — Option detail page: interleaved History with Rejection management
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -23,15 +23,15 @@ The detail page gets **no** dated add-rejection form — creating a Rejection fo
 
 ## Acceptance criteria
 
-- [ ] `app/catalog/[id]/page.tsx` loads `getOptionLog`, `getOptionRejections`, and `getOptionChoices` and builds its History section from `groupByDay(optionLog, optionRejections, todaySql)`
-- [ ] The merged History section renders future-dated groups first (`[...upcoming].reverse()`) then realized history newest-first, each date-group a `formatDinnerDate` header above that day's `EntryRow`s and `RejectionRow`s
-- [ ] An Option with no logged dinners and no Rejections shows "Nothing logged or rejected yet for this Option."
-- [ ] Every Rejection row (past, today, or future) offers inline Edit (Option, date, reason → `updateRejection`) and Delete (§17 inline-confirm → `deleteRejection`), reusing the shared `RejectionRow` from ticket 32
-- [ ] An edit producing a duplicate `(option_id, rejected_on)` shows the inline "Already rejected for that date" error
-- [ ] The detail page's today-only "Bring back" affordance is replaced by the always-available Delete
-- [ ] Editing or deleting a Rejection refreshes the detail page in place via the `/catalog/[id]` revalidation
-- [ ] No dated add-rejection form is added to the detail page; its existing live "Reject" control is unchanged
-- [ ] Tonight's "Rejected tonight" disclosure and its today-only "Bring back" quick-undo are unchanged
+- [x] `app/catalog/[id]/page.tsx` loads `getOptionLog`, `getOptionRejections`, and `getOptionChoices` and builds its History section from `groupByDay(optionLog, optionRejections, todaySql)`
+- [x] The merged History section renders future-dated groups first (`[...upcoming].reverse()`) then realized history newest-first, each date-group a `formatDinnerDate` header above that day's `EntryRow`s and `RejectionRow`s
+- [x] An Option with no logged dinners and no Rejections shows "Nothing logged or rejected yet for this Option."
+- [x] Every Rejection row (past, today, or future) offers inline Edit (Option, date, reason → `updateRejection`) and Delete (§17 inline-confirm → `deleteRejection`), reusing the shared `RejectionRow` from ticket 32
+- [x] An edit producing a duplicate `(option_id, rejected_on)` shows the inline "Already rejected for that date" error
+- [x] The detail page's today-only "Bring back" affordance is replaced by the always-available Delete
+- [x] Editing or deleting a Rejection refreshes the detail page in place via the `/catalog/[id]` revalidation
+- [x] No dated add-rejection form is added to the detail page; its existing live "Reject" control is unchanged
+- [x] Tonight's "Rejected tonight" disclosure and its today-only "Bring back" quick-undo are unchanged
 
 ## Blocked by
 
