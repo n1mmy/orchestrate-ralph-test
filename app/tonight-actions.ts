@@ -7,7 +7,7 @@ import {
   type SearchResult,
 } from "@/lib/ai-search";
 import { authedAction } from "@/lib/authed-action";
-import { getAllRejections, getTonightData } from "@/db/queries";
+import { getRejections, getTonightData } from "@/db/queries";
 import { today as todaySqlDate } from "@/lib/local-day";
 
 /**
@@ -38,7 +38,7 @@ export const aiSearchAction = authedAction(
     const todaySql = todaySqlDate();
     const [{ options, fullLog }, rejections] = await Promise.all([
       getTonightData(todaySql),
-      getAllRejections(),
+      getRejections(),
     ]);
 
     const client = createAiSearchClient(apiKey);

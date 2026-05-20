@@ -1,6 +1,6 @@
 # 21 — Feed AI search
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -27,20 +27,20 @@ Test per the source PRD: full Vitest unit coverage of `lib/rejections.ts` in a n
 
 ## Acceptance criteria
 
-- [ ] A pure `lib/rejections.ts` exports `RejectionRow`, `RejectionsBlock`, `PartitionedRejections`, and `partitionRejections(rows, today, indexByOptionId)`
-- [ ] `partitionRejections` partitions rows into `rejectedTonight` (dated exactly today) and `notTodayRejections` (every other row, past and future) on an exact date-string boundary
-- [ ] It derives a `suppressedToday` `Set` of exactly today's rejected Option ids — future-dated rows excluded
-- [ ] The snapshot block delimits reasons (`null` carried as `null`), strips delimiter substrings, formats dates with weekday, delimits name and tags, refers to Options by snapshot integer, and orders each group newest first
-- [ ] `ModelSnapshot` gains a `rejections: RejectionsBlock` field
-- [ ] `buildSnapshot` accepts `rejections: RejectionRow[]`, drops `suppressedToday` Options from the candidate `options` (and from `idByIndex`) leaving a number gap, and attaches the Rejections block
-- [ ] An earlier-rejected or future-dated-rejected Option still appears in the candidate `options`
-- [ ] A today-rejected Option is absent from AI search results for the rest of the day (absent from `idByIndex`, so `parseAndValidate` cannot resurface it)
-- [ ] The system prompt explains the Rejections block, its two groups, and that the model judges standing versus one-off itself
-- [ ] A `getRejections()` query joins `rejections` rows to their **active** Options as `RejectionRow`, newest `rejected_on` first; `aiSearchAction` in `app/tonight-actions.ts` loads it and passes the rows to `buildSnapshot`
-- [ ] Rejections of Archived Options are excluded from the snapshot (by `getRejections`'s active-only join)
-- [ ] A Rejection with no reason is still carried into the snapshot
-- [ ] New unit tests cover `lib/rejections.ts` in full; `lib/ai-search.test.ts` is extended for the candidate-drop and the Rejections block
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] A pure `lib/rejections.ts` exports `RejectionRow`, `RejectionsBlock`, `PartitionedRejections`, and `partitionRejections(rows, today, indexByOptionId)`
+- [x] `partitionRejections` partitions rows into `rejectedTonight` (dated exactly today) and `notTodayRejections` (every other row, past and future) on an exact date-string boundary
+- [x] It derives a `suppressedToday` `Set` of exactly today's rejected Option ids — future-dated rows excluded
+- [x] The snapshot block delimits reasons (`null` carried as `null`), strips delimiter substrings, formats dates with weekday, delimits name and tags, refers to Options by snapshot integer, and orders each group newest first
+- [x] `ModelSnapshot` gains a `rejections: RejectionsBlock` field
+- [x] `buildSnapshot` accepts `rejections: RejectionRow[]`, drops `suppressedToday` Options from the candidate `options` (and from `idByIndex`) leaving a number gap, and attaches the Rejections block
+- [x] An earlier-rejected or future-dated-rejected Option still appears in the candidate `options`
+- [x] A today-rejected Option is absent from AI search results for the rest of the day (absent from `idByIndex`, so `parseAndValidate` cannot resurface it)
+- [x] The system prompt explains the Rejections block, its two groups, and that the model judges standing versus one-off itself
+- [x] A `getRejections()` query joins `rejections` rows to their **active** Options as `RejectionRow`, newest `rejected_on` first; `aiSearchAction` in `app/tonight-actions.ts` loads it and passes the rows to `buildSnapshot`
+- [x] Rejections of Archived Options are excluded from the snapshot (by `getRejections`'s active-only join)
+- [x] A Rejection with no reason is still carried into the snapshot
+- [x] New unit tests cover `lib/rejections.ts` in full; `lib/ai-search.test.ts` is extended for the candidate-drop and the Rejections block
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
 
 ## Blocked by
 
@@ -52,3 +52,4 @@ Test per the source PRD: full Vitest unit coverage of `lib/rejections.ts` in a n
 ## Comments
 
 - attempt 1: worker succeeded but merge into integration aborted on conflict in `lib/ai-search.ts` and `lib/ai-search.test.ts` (issue 18 dispatched in the same wave reworked the same module — `aiSearchEnabled()`, model selection, `cache_control`, observability logging, and extensive new tests). Re-run branches off the updated tip — issue 18 is now merged — so layer the Rejections snapshot extension (`partitionRejections`, `RejectionsBlock`, the `rejections: RejectionRow[]` parameter to `buildSnapshot`, the system-prompt addition, the `getRejections()` query, and the `lib/rejections.ts` module) on top of 18's `aiSearchEnabled` / `MODEL_DEFAULT` / `aiSearchLog` / `cache_control` structure rather than rewriting the file.
+- attempt 2: layered on top of 18's structure as instructed. Added `lib/rejections.ts` with `partitionRejections`, `RejectionRow`, `RejectionsBlock`, `SnapshotRejection`, `PartitionedRejections`; added `delimitNullable` and `formatDateWithWeekday` to `lib/snapshot-format.ts`; replaced `getAllRejections` with `getRejections` (richer shape including the Option's `name` / `kind` / `tags`); extended `buildSnapshot` to take `RejectionRow[]`, partition on exact today-string equality, drop today-rejected Options from candidate `options` and `idByIndex` while keeping their snapshot integer for history rows, and emit the `rejections: RejectionsBlock`; extended the system prompt to explain the two groups and the standing-vs-one-off judgment; wired `aiSearchAction` and the eval harness to the new query. New `lib/rejections.test.ts` covers the partition exhaustively; `lib/ai-search.test.ts` extended with the `buildSnapshot — Rejections block` describe. Gate green.

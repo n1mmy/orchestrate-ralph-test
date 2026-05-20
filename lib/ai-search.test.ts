@@ -19,9 +19,9 @@ import {
   resolveTailMode,
   thinkingDescriptor,
   type AiSearchLogLine,
+  type RejectionRow,
   type SnapshotLogEntry,
   type SnapshotOption,
-  type SnapshotRejection,
 } from "./ai-search";
 
 /**
@@ -77,9 +77,23 @@ describe("buildSnapshot", () => {
     { optionId: BANH_ID, eatenOn: "2026-05-22", note: "planned" },
   ];
 
-  const baseRejections: SnapshotRejection[] = [
-    { optionId: BANH_ID, rejectedOn: "2026-05-19", reason: "tired of it" },
-    { optionId: CHICKEN_ID, rejectedOn: "2026-05-12", reason: null },
+  const baseRejections: RejectionRow[] = [
+    {
+      optionId: BANH_ID,
+      rejectedOn: "2026-05-19",
+      reason: "tired of it",
+      optionName: "Banh Mi",
+      kind: "restaurant",
+      tags: ["sandwich"],
+    },
+    {
+      optionId: CHICKEN_ID,
+      rejectedOn: "2026-05-12",
+      reason: null,
+      optionName: "Chicken Soup",
+      kind: "home",
+      tags: ["soup", "comfort"],
+    },
   ];
 
   it("emits Options alphabetically by name, numbered 1-based, with every Household-text field delimited", () => {
@@ -142,7 +156,7 @@ describe("buildSnapshot", () => {
     });
   });
 
-  it("refers to Options by integer in log entries and rejections (never by UUID)", () => {
+  it("refers to Options by integer in log entries (never by UUID)", () => {
     const { snapshot } = buildSnapshot({
       options: baseOptions,
       log: baseLog,
@@ -158,12 +172,6 @@ describe("buildSnapshot", () => {
     expect(snapshot.log[0]?.note).toBe(delimited("planned"));
     expect(snapshot.log[2]?.note).toBe(delimited("Friday treat"));
     expect(snapshot.log[1]?.note).toBeNull();
-
-    // Rejections: newest first.
-    expect(snapshot.rejections.map((r) => r.optionId)).toEqual([2, 3]);
-    expect(snapshot.rejections[0]?.reason).toBe(delimited("tired of it"));
-    expect(snapshot.rejections[1]?.reason).toBeNull();
-    expect(snapshot.rejections[0]?.weekday).toBe("Tuesday");
   });
 
   it("carries today's date and weekday at the top of the snapshot", () => {
@@ -221,6 +229,250 @@ describe("buildSnapshot", () => {
       query: "",
     });
     expect(snapshot.log).toHaveLength(baseLog.length);
+  });
+});
+
+/**
+ * `buildSnapshot — Rejections`. The Rejections block is the AI-result side of
+ * suppression: a today-rejected Option drops out of the candidate `options`
+ * and out of `idByIndex` (leaving a deliberate gap in the integer numbering),
+ * while an earlier or future-dated Rejection keeps its Option in the
+ * candidate set so the model can reconsider it with the reason in hand.
+ */
+describe("buildSnapshot — Rejections block", () => {
+  const ALICE: SnapshotOption = {
+    id: ALICE_ID,
+    name: "Alice's Pizza",
+    kind: "restaurant",
+    tags: ["pizza"],
+    notes: null,
+  };
+  const BANH: SnapshotOption = {
+    id: BANH_ID,
+    name: "Banh Mi",
+    kind: "restaurant",
+    tags: ["sandwich"],
+    notes: null,
+  };
+  const CHICKEN: SnapshotOption = {
+    id: CHICKEN_ID,
+    name: "Chicken Soup",
+    kind: "home",
+    tags: ["soup", "comfort"],
+    notes: null,
+  };
+
+  const baseOptions: SnapshotOption[] = [ALICE, BANH, CHICKEN];
+
+  it("drops a today-rejected Option from candidate options, leaving the integer-numbering GAP", () => {
+    const rejections: RejectionRow[] = [
+      // Alice's Pizza rejected today.
+      {
+        optionId: ALICE_ID,
+        rejectedOn: "2026-05-20",
+        reason: "too heavy tonight",
+        optionName: "Alice's Pizza",
+        kind: "restaurant",
+        tags: ["pizza"],
+      },
+    ];
+    const { snapshot, idByIndex } = buildSnapshot({
+      options: baseOptions,
+      log: [],
+      rejections,
+      today: "2026-05-20",
+      query: "",
+    });
+
+    // Alphabetical numbering reserved slot 1 for Alice — but Alice is dropped
+    // from the candidate set, so `options` carries 2 and 3 only.
+    expect(snapshot.options.map((o) => o.id)).toEqual([2, 3]);
+    expect(snapshot.options.map((o) => o.name)).toEqual([
+      delimited("Banh Mi"),
+      delimited("Chicken Soup"),
+    ]);
+
+    // `idByIndex` carries only the candidate set; slot 1 is gone, so
+    // `parseAndValidate` cannot resurface Alice from the model's ranking.
+    expect(idByIndex).toEqual({ "2": BANH_ID, "3": CHICKEN_ID });
+  });
+
+  it("a today-rejected Option still appears in the rejectedTonight block, by its preserved snapshot integer", () => {
+    const rejections: RejectionRow[] = [
+      {
+        optionId: ALICE_ID,
+        rejectedOn: "2026-05-20",
+        reason: "too heavy tonight",
+        optionName: "Alice's Pizza",
+        kind: "restaurant",
+        tags: ["pizza"],
+      },
+    ];
+    const { snapshot } = buildSnapshot({
+      options: baseOptions,
+      log: [],
+      rejections,
+      today: "2026-05-20",
+      query: "",
+    });
+    expect(snapshot.rejections.rejectedTonight).toHaveLength(1);
+    const entry = snapshot.rejections.rejectedTonight[0]!;
+    // The dropped Option keeps its alphabetical snapshot integer (1).
+    expect(entry.optionId).toBe(1);
+    expect(entry.optionName).toBe(delimited("Alice's Pizza"));
+    expect(entry.tags).toEqual([delimited("pizza")]);
+    expect(entry.kind).toBe("restaurant");
+    expect(entry.date).toBe("2026-05-20 (Wednesday)");
+    expect(entry.reason).toBe(delimited("too heavy tonight"));
+  });
+
+  it("an earlier-rejected Option stays a candidate and its Rejection lands in notTodayRejections", () => {
+    const rejections: RejectionRow[] = [
+      {
+        optionId: BANH_ID,
+        rejectedOn: "2026-05-15",
+        reason: "had it last week",
+        optionName: "Banh Mi",
+        kind: "restaurant",
+        tags: ["sandwich"],
+      },
+    ];
+    const { snapshot, idByIndex } = buildSnapshot({
+      options: baseOptions,
+      log: [],
+      rejections,
+      today: "2026-05-20",
+      query: "",
+    });
+
+    // Banh Mi (id 2) is still a candidate.
+    expect(snapshot.options.map((o) => o.id)).toEqual([1, 2, 3]);
+    expect(idByIndex).toEqual({
+      "1": ALICE_ID,
+      "2": BANH_ID,
+      "3": CHICKEN_ID,
+    });
+
+    expect(snapshot.rejections.rejectedTonight).toEqual([]);
+    expect(snapshot.rejections.notTodayRejections).toHaveLength(1);
+    const entry = snapshot.rejections.notTodayRejections[0]!;
+    expect(entry.optionId).toBe(2);
+    expect(entry.date).toBe("2026-05-15 (Friday)");
+    expect(entry.reason).toBe(delimited("had it last week"));
+  });
+
+  it("a future-dated Planned rejection lands in notTodayRejections with its Option still a candidate", () => {
+    const rejections: RejectionRow[] = [
+      {
+        optionId: CHICKEN_ID,
+        rejectedOn: "2026-05-24", // Sunday after today (2026-05-20 = Wed).
+        reason: "guests over",
+        optionName: "Chicken Soup",
+        kind: "home",
+        tags: ["soup", "comfort"],
+      },
+    ];
+    const { snapshot, idByIndex } = buildSnapshot({
+      options: baseOptions,
+      log: [],
+      rejections,
+      today: "2026-05-20",
+      query: "",
+    });
+
+    // Chicken Soup (id 3) is still a candidate — a future Rejection is
+    // habit signal, not today's suppression.
+    expect(idByIndex["3"]).toBe(CHICKEN_ID);
+
+    expect(snapshot.rejections.rejectedTonight).toEqual([]);
+    expect(snapshot.rejections.notTodayRejections).toHaveLength(1);
+    const entry = snapshot.rejections.notTodayRejections[0]!;
+    expect(entry.optionId).toBe(3);
+    expect(entry.date).toBe("2026-05-24 (Sunday)");
+  });
+
+  it("carries a null reason through as null on the block entry", () => {
+    const rejections: RejectionRow[] = [
+      {
+        optionId: BANH_ID,
+        rejectedOn: "2026-05-15",
+        reason: null,
+        optionName: "Banh Mi",
+        kind: "restaurant",
+        tags: ["sandwich"],
+      },
+    ];
+    const { snapshot } = buildSnapshot({
+      options: baseOptions,
+      log: [],
+      rejections,
+      today: "2026-05-20",
+      query: "",
+    });
+    expect(snapshot.rejections.notTodayRejections[0]?.reason).toBeNull();
+  });
+
+  it("orders both groups newest first", () => {
+    const rejections: RejectionRow[] = [
+      // Two rows in notTodayRejections: oldest first in input, newest first in output.
+      {
+        optionId: BANH_ID,
+        rejectedOn: "2026-05-10",
+        reason: "older",
+        optionName: "Banh Mi",
+        kind: "restaurant",
+        tags: [],
+      },
+      {
+        optionId: CHICKEN_ID,
+        rejectedOn: "2026-05-18",
+        reason: "newer",
+        optionName: "Chicken Soup",
+        kind: "home",
+        tags: [],
+      },
+    ];
+    const { snapshot } = buildSnapshot({
+      options: baseOptions,
+      log: [],
+      rejections,
+      today: "2026-05-20",
+      query: "",
+    });
+    expect(
+      snapshot.rejections.notTodayRejections.map((r) => r.reason),
+    ).toEqual([delimited("newer"), delimited("older")]);
+  });
+
+  it("Log entries for a today-rejected Option still appear (via the full-catalog index)", () => {
+    // A today-rejected Option drops from candidate options but keeps its
+    // Log rows in the snapshot — the model still sees the history behind
+    // the integer gap.
+    const log: SnapshotLogEntry[] = [
+      { optionId: ALICE_ID, eatenOn: "2026-05-13", note: "Friday treat" },
+    ];
+    const rejections: RejectionRow[] = [
+      {
+        optionId: ALICE_ID,
+        rejectedOn: "2026-05-20",
+        reason: "too heavy",
+        optionName: "Alice's Pizza",
+        kind: "restaurant",
+        tags: ["pizza"],
+      },
+    ];
+    const { snapshot } = buildSnapshot({
+      options: baseOptions,
+      log,
+      rejections,
+      today: "2026-05-20",
+      query: "",
+    });
+    // Alice's Pizza is out of `options`, but her Log row stays — keyed by
+    // the snapshot integer 1 the index still carries.
+    expect(snapshot.options.map((o) => o.id)).toEqual([2, 3]);
+    expect(snapshot.log).toHaveLength(1);
+    expect(snapshot.log[0]?.optionId).toBe(1);
   });
 });
 
@@ -752,7 +1004,12 @@ describe("buildSystemPrompt", () => {
     const prompt = buildSystemPrompt({ tailMode: "pithy" });
     expect(prompt).toMatch(/Rejection/);
     expect(prompt).toMatch(/today/i);
-    expect(prompt).toMatch(/standing|one-off/i);
+    expect(prompt).toMatch(/standing/i);
+    expect(prompt).toMatch(/one-off/i);
+    // The two named groups the snapshot carries.
+    expect(prompt).toMatch(/Rejected tonight/i);
+    // And the "no reason → light signal" instruction.
+    expect(prompt).toMatch(/no reason/i);
   });
 
   it("explains the <household-text> delimiter rule", () => {

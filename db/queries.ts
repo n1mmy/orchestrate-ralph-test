@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lte, sql } from "drizzle-orm";
 import { db } from "./index";
 import { dinnerLog, options, optionTags, rejections, tags } from "./schema";
 import type { RankLogEntry, RankOption } from "@/lib/ranking";
+import type { RejectionRow } from "@/lib/rejections";
 import type { TodayLogEntry } from "@/lib/tonights-dinner";
 import { epochDayFromSqlDate } from "@/lib/local-day";
 
@@ -283,32 +284,71 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
 }
 
 /**
- * Every Rejection joined to its active Option, with the SQL `date` string
- * preserved (no integer-epoch conversion — the AI-search snapshot serialises
- * dates as strings, and the ranker does not read this set). The result is
- * newest first so the snapshot's `rejections` ordering matches.
+ * Every Rejection joined to its **active** Option, in the `RejectionRow` shape
+ * `lib/rejections.ts`'s `partitionRejections` consumes — the bare Rejection
+ * fields (`optionId`, `reason`, `rejectedOn`) plus the Option's `name`, `kind`,
+ * and `tags` carried alongside so the snapshot block stays readable without a
+ * second lookup. Past, today, and future-dated rows all returned — the
+ * partition step in `lib/rejections.ts` is the one that splits them.
+ *
+ * The SQL `date` string is preserved verbatim (no integer-epoch conversion —
+ * the AI-search snapshot serialises dates as strings, and the ranker does not
+ * read this set). Ordered newest `rejected_on` first, with `created_at`
+ * breaking a same-day tie. Archived Options are excluded by the inner join on
+ * `options.active = true`, mirroring how the Log already excludes Archived
+ * Options' entries.
+ *
+ * Kept distinct from ticket 19's `getTodayRejections`: that today-only subset
+ * feeds the deterministic suppression and the "Rejected tonight" disclosure,
+ * while `getRejections` feeds the AI-search snapshot's full Rejection history.
  */
-export type RejectionForSnapshot = {
-  optionId: string;
-  rejectedOn: string;
-  reason: string | null;
-};
-
-export async function getAllRejections(): Promise<RejectionForSnapshot[]> {
-  const rows = await db
+export async function getRejections(): Promise<RejectionRow[]> {
+  const rejectionRows = await db
     .select({
       optionId: rejections.optionId,
-      rejectedOn: rejections.rejectedOn,
       reason: rejections.reason,
+      rejectedOn: rejections.rejectedOn,
+      createdAt: rejections.createdAt,
+      optionName: options.name,
+      kind: options.kind,
     })
     .from(rejections)
     .innerJoin(options, eq(options.id, rejections.optionId))
     .where(eq(options.active, true))
-    .orderBy(desc(rejections.rejectedOn));
-  return rows.map((r) => ({
+    .orderBy(desc(rejections.rejectedOn), desc(rejections.createdAt));
+
+  if (rejectionRows.length === 0) return [];
+
+  // Pull the Tag names for every Option referenced — one extra query rather
+  // than a left-join fan-out at the Rejection level (which would multiply
+  // every Rejection by its Option's tag count and force a re-grouping).
+  const optionIds = Array.from(new Set(rejectionRows.map((r) => r.optionId)));
+  const tagRows = await db
+    .select({
+      optionId: optionTags.optionId,
+      name: tags.name,
+    })
+    .from(optionTags)
+    .innerJoin(tags, eq(tags.id, optionTags.tagId))
+    .where(inArray(optionTags.optionId, optionIds));
+
+  const tagsByOption = new Map<string, string[]>();
+  for (const row of tagRows) {
+    let list = tagsByOption.get(row.optionId);
+    if (!list) {
+      list = [];
+      tagsByOption.set(row.optionId, list);
+    }
+    list.push(row.name);
+  }
+
+  return rejectionRows.map((r) => ({
     optionId: r.optionId,
-    rejectedOn: r.rejectedOn,
     reason: r.reason,
+    rejectedOn: r.rejectedOn,
+    optionName: r.optionName,
+    kind: r.kind,
+    tags: tagsByOption.get(r.optionId) ?? [],
   }));
 }
 
