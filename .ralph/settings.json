@@ -27,7 +27,9 @@
       "Bash(pnpm typecheck:*)",
       "Bash(pnpm lint:*)",
       "Bash(pnpm test:*)",
-      "Bash(pnpm build:*)"
+      "Bash(pnpm build:*)",
+      "Bash(pnpm:*)",
+      "Bash(node:*)"
     ],
     "deny": [
       "Bash(git push:*)",
