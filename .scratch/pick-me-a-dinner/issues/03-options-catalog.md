@@ -1,6 +1,6 @@
 # 03 — Options catalog: CRUD
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -59,20 +59,20 @@ with a visible `<label>`.
 
 ## Acceptance criteria
 
-- [ ] Home meals and Restaurants load via `getActiveCatalog()`, render in two
+- [x] Home meals and Restaurants load via `getActiveCatalog()`, render in two
       sections each showing the Option name, and add/edit via an inline-expand
       `OptionForm` identical on phone and desktop
-- [ ] `archiveOption` sets `active = false`; archived Options drop out of the
+- [x] `archiveOption` sets `active = false`; archived Options drop out of the
       default Catalog list and Tonight, Log history untouched
-- [ ] `deleteOption` hard-deletes an Option with zero Log entries
-- [ ] Deleting an Option with Log history catches the `ON DELETE RESTRICT`
+- [x] `deleteOption` hard-deletes an Option with zero Log entries
+- [x] Deleting an Option with Log history catches the `ON DELETE RESTRICT`
       (`23503`) via `pgErrorMessage` and returns the inline "In your log —
       archive instead" message — no error page
-- [ ] Destructive actions require an inline "Delete/Archive · Cancel" confirm
+- [x] Destructive actions require an inline "Delete/Archive · Cancel" confirm
       step (no modal, no undo)
-- [ ] Loading (`loading.tsx`) / empty / blank-name error / saved-in-place
+- [x] Loading (`loading.tsx`) / empty / blank-name error / saved-in-place
       states match §17 for Catalog
-- [ ] `app/catalog/actions.db.test.ts` covers: archive sets `active = false`;
+- [x] `app/catalog/actions.db.test.ts` covers: archive sets `active = false`;
       hard-delete blocked for a logged Option and allowed for an unlogged one;
       blank name rejected with "Enter a name"
 
