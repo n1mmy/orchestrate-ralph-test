@@ -370,6 +370,107 @@ export async function getLogOptionChoices(): Promise<LogOptionChoice[]> {
 }
 
 /**
+ * The Option picker the Rejection-edit / Rejection-create forms render
+ * (tickets 32, 33). Every Option, Active and Archived, alphabetical — an
+ * entry already logged against an Archived Option must stay selectable so the
+ * Household can fix an old Rejection's Option without first un-archiving.
+ * Distinct from `LogOptionChoice` in that the `active` flag is not needed at
+ * the call site: the Rejection forms do not render an "Archived" badge today.
+ */
+export type OptionChoice = {
+  id: string;
+  name: string;
+  kind: "home" | "restaurant";
+};
+
+export async function getOptionChoices(): Promise<OptionChoice[]> {
+  const rows = await db
+    .select({
+      id: options.id,
+      name: options.name,
+      kind: options.kind,
+    })
+    .from(options)
+    .orderBy(asc(options.name));
+  return rows;
+}
+
+/**
+ * One Rejection as the Log screen and the Option detail page render it — the
+ * Rejection's own `id` (the row handle the edit and delete actions key by),
+ * the Option it was made against (`optionId`, `optionName`, `kind`), the
+ * dated day, and the optional `reason` text. The counterpart of `LogEntry`
+ * for Rejections; both Active and Archived Options are included so an
+ * Archived Option's Rejection history stays visible.
+ */
+export type LogRejectionRow = {
+  id: string;
+  optionId: string;
+  optionName: string;
+  kind: "home" | "restaurant";
+  rejectedOn: string;
+  reason: string | null;
+};
+
+/**
+ * Every Rejection — past, today, and future — joined to its Option, newest
+ * `rejected_on` first, then alphabetical by Option name for a stable order
+ * within a date. The counterpart of `getLog`; not filtered to active Options.
+ */
+export async function getLogRejections(): Promise<LogRejectionRow[]> {
+  const rows = await db
+    .select({
+      id: rejections.id,
+      optionId: rejections.optionId,
+      optionName: options.name,
+      kind: options.kind,
+      rejectedOn: rejections.rejectedOn,
+      reason: rejections.reason,
+    })
+    .from(rejections)
+    .innerJoin(options, eq(options.id, rejections.optionId))
+    .orderBy(desc(rejections.rejectedOn), asc(options.name));
+  return rows;
+}
+
+/**
+ * Every Rejection for one Option, newest `rejected_on` first, then newest
+ * `created_at` first for a stable order within a date (two same-day
+ * Rejections on one Option are not possible under the unique constraint, but
+ * the secondary sort keeps the query deterministic). Drives the Option detail
+ * page's Rejection-history section (ticket 24); not filtered to active
+ * Options — an Archived Option's own Rejection history stays visible on its
+ * detail page.
+ */
+export async function getOptionRejections(
+  optionId: string,
+): Promise<LogRejectionRow[]> {
+  if (!UUID_RE.test(optionId)) return [];
+  const rows = await db
+    .select({
+      id: rejections.id,
+      optionId: rejections.optionId,
+      optionName: options.name,
+      kind: options.kind,
+      rejectedOn: rejections.rejectedOn,
+      reason: rejections.reason,
+      createdAt: rejections.createdAt,
+    })
+    .from(rejections)
+    .innerJoin(options, eq(options.id, rejections.optionId))
+    .where(eq(rejections.optionId, optionId))
+    .orderBy(desc(rejections.rejectedOn), desc(rejections.createdAt));
+  return rows.map((r) => ({
+    id: r.id,
+    optionId: r.optionId,
+    optionName: r.optionName,
+    kind: r.kind,
+    rejectedOn: r.rejectedOn,
+    reason: r.reason,
+  }));
+}
+
+/**
  * One of today's Rejections, joined to the Option it was made against.
  * The Tonight page reads this set to suppress already-rejected Options from
  * the deterministic picker (a presentation filter, not a Score change). The

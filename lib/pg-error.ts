@@ -40,6 +40,9 @@ function isPgErrorLike(value: unknown): value is PgErrorLike {
 /** The `dinner_log` unique constraint name from `db/schema.ts`. */
 const DINNER_LOG_UNIQUE = "dinner_log_option_eaten_on_unique";
 
+/** The `rejections` unique constraint name from `db/schema.ts`. */
+const REJECTIONS_UNIQUE = "rejections_option_rejected_on_unique";
+
 /**
  * Return an inline error string for a known, recoverable Postgres failure, or
  * `null` if the error is not one of those — in which case the caller should
@@ -55,6 +58,42 @@ export function pgErrorMessage(error: unknown): string | null {
     if (constraint === DINNER_LOG_UNIQUE) {
       return "Already logged for that date";
     }
+  }
+  return null;
+}
+
+/**
+ * Translate an expected Postgres error from a Rejection write into an inline
+ * message, or `null` if the error is unrecognised — the rejection-write
+ * counterpart of `pgErrorMessage`. Lives next to it so the constraint-name
+ * conventions stay in one place; kept distinct because the two write paths
+ * surface different copy for the same `23503` foreign-key violation (the
+ * `dinner_log` archive hint vs. the Rejection's "no longer available"
+ * fallback for a stale Option id).
+ *
+ * Two recoverable cases:
+ *
+ * - `23505` (unique_violation) on `rejections_option_rejected_on_unique` —
+ *   the `(option_id, rejected_on)` collision — becomes "Already rejected for
+ *   that date".
+ * - `22P02` (invalid_text_representation, e.g. a malformed uuid) or `23503`
+ *   (foreign_key_violation, a stale Option id) — becomes "That option is no
+ *   longer available". Both shapes signal the same user-visible cause: the
+ *   Option this Rejection points at no longer exists in the Catalog.
+ *
+ * Anything else returns `null` and the caller rethrows.
+ */
+export function rejectionWriteError(error: unknown): string | null {
+  if (!isPgErrorLike(error)) return null;
+  if (error.code === "23505") {
+    const constraint = error.constraint_name ?? error.constraint;
+    if (constraint === REJECTIONS_UNIQUE) {
+      return "Already rejected for that date";
+    }
+    return null;
+  }
+  if (error.code === "22P02" || error.code === "23503") {
+    return "That option is no longer available";
   }
   return null;
 }

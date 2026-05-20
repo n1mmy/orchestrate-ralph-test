@@ -6,110 +6,177 @@ import { db } from "@/db";
 import { rejections } from "@/db/schema";
 import { authedAction } from "@/lib/authed-action";
 import { type ActionResult, err, ok, trimToNull } from "@/lib/action-result";
-import { today as todaySqlDate } from "@/lib/local-day";
+import { isValidSqlDate, today as todaySqlDate } from "@/lib/local-day";
+import { rejectionWriteError } from "@/lib/pg-error";
 
 /**
- * The write path for Rejections — every write to the `rejections` table lives
- * in this one module. A Rejection is a Household turn-down of an Option for
- * one calendar day; it is **not** a Log entry and carries no Score weight
- * (ADR-0003, ADR-0006). Suppression on Tonight is a presentation filter in
- * `app/page.tsx`, not a ranker concern — `lib/ranking.ts` is untouched.
+ * The single write path for Rejections — every write to the `rejections` table
+ * lives in this one module so the `(option_id, rejected_on)` collision is
+ * handled in exactly one place. A Rejection is the Household's turn-down of an
+ * Option for one calendar day; it is **not** a Log entry and carries no Score
+ * weight (ADR-0003, ADR-0006). Suppression on Tonight is a presentation
+ * filter, not a ranker concern — `lib/ranking.ts` is untouched.
  *
- * `authedAction` wrapping is not optional: a Server Action is reachable by
- * its dispatch id from any route, so the shared-password session check has
- * to run here even though middleware gates page renders.
+ * Four `authedAction`-wrapped actions:
+ *
+ * - `createRejection(optionId, rejectedOn, reason)` — the Log screen's and
+ *   Option detail page's manual Rejection-create form. Validates the date,
+ *   then delegates to the shared `recordRejection` core.
+ * - `updateRejection(id, { optionId, rejectedOn, reason })` — the inline edit
+ *   on a Rejection row. Validates the date, then `db.update(rejections)` by id.
+ * - `deleteRejection(id)` — removes the `rejections` row entirely so it stops
+ *   feeding AI search (ADR-0006). This is also the action behind Tonight's
+ *   "Bring back" — bringing back a today-dated Rejection is the same row
+ *   delete, so there is one shared action, not a duplicate.
+ * - `rejectOption(optionId, reason)` — "create a Rejection dated today";
+ *   delegates to `recordRejection` after computing the Household's `today()`,
+ *   inheriting the `23505` collision handling so a double-tap on the live
+ *   Tonight reject control returns the inline collision error rather than a
+ *   500.
+ *
+ * `authedAction` wrapping is not optional: a Server Action is reachable by its
+ * dispatch id from any route, so the shared-password session check has to run
+ * here even though middleware gates page renders.
  */
 
 /**
- * A shape-loose view of a `postgres-js` error — just the fields we read for
- * the two recoverable codes this module surfaces inline. `pgErrorMessage`
- * translates the `dinner_log` constraints; rejection writes have their own
- * narrow translations (a malformed/stale Option id) so we read the code
- * locally rather than burden the shared helper with rejection-specific
- * meanings.
+ * Revalidate the three views a Rejection write affects:
+ *
+ * - `/` — Tonight's deterministic picker filters by today's Rejections, so a
+ *   Rejection dated today changes the suppression set.
+ * - `/log` — the Log screen renders every Rejection alongside its Dinners.
+ * - `/catalog/[id]` — the Option detail page shows the Option's Rejection
+ *   history; revalidated as a dynamic route segment so every Option detail
+ *   page invalidates at once.
+ *
+ * Centralised so every create / update / delete path stays in lock-step.
  */
-type PgCode = { code?: string };
-
-function pgCode(error: unknown): string | undefined {
-  if (typeof error !== "object" || error === null) return undefined;
-  const v = error as Record<string, unknown>;
-  return typeof v.code === "string" ? v.code : undefined;
+function revalidateRejectionViews(): void {
+  revalidatePath("/");
+  revalidatePath("/log");
+  revalidatePath("/catalog/[id]", "page");
 }
 
 /**
- * Reject an Option for tonight. Inserts a `rejections` row dated `today()` in
- * `APP_TZ`; an empty or whitespace-only reason is stored as `null`. On
- * success the response is `{ ok: true }` and the revalidation removes the
- * row from the Tonight picker (the page filter keys on today's Rejections).
+ * The shared write core. Insert a `rejections` row for `(optionId,
+ * rejectedOn)` with an optional `reason` (empty / whitespace stored as
+ * `null`), revalidate the three Rejection views, and translate an expected
+ * driver error into an inline message. The date is assumed already validated
+ * by the caller — `createRejection` validates a typed date with
+ * `isValidSqlDate`, and `rejectOption` derives the date from `today()`.
  *
- * A driver error from a malformed or stale Option id is mapped inline —
- * `22P02` (invalid uuid) or `23503` (FK violation on `option_id`) becomes
- * `"That option is no longer available"`. Anything else rethrows so Next's
- * error boundary handles it. The action is thin by design — no logic beyond
- * the dated write — following the existing `pickTonight` pattern.
- *
- * `/` is revalidated because the Tonight picker filters by today's
- * Rejections; `/log` and `/catalog/[id]` are revalidated for consistency
- * with later phases that surface Rejections on those routes (tickets 20+).
+ * Both `createRejection` and `rejectOption` delegate here so the `23505`
+ * `(option_id, rejected_on)` collision handling is shared by every create
+ * path.
  */
-export const rejectOption = authedAction(
-  async (optionId: string, reason?: string): Promise<ActionResult> => {
-    const trimmedReason = trimToNull(reason);
+async function recordRejection(
+  optionId: string,
+  rejectedOn: string,
+  reason: string | undefined,
+): Promise<ActionResult> {
+  try {
+    await db.insert(rejections).values({
+      optionId,
+      rejectedOn,
+      reason: trimToNull(reason),
+    });
+  } catch (error) {
+    const message = rejectionWriteError(error);
+    if (message !== null) return err(message);
+    throw error;
+  }
+  revalidateRejectionViews();
+  return ok();
+}
+
+/**
+ * Create a Rejection for a deliberately chosen date. A past date backfills a
+ * Rejection never recorded live; a future date is a Planned rejection that
+ * suppresses its Option from Tonight when that date arrives (CONTEXT.md). A
+ * blank or malformed date returns the inline "Pick a valid date" message
+ * rather than reaching the DB.
+ */
+export const createRejection = authedAction(
+  async (
+    optionId: string,
+    rejectedOn: string,
+    reason?: string,
+  ): Promise<ActionResult> => {
+    if (!isValidSqlDate(rejectedOn)) return err("Pick a valid date");
+    return recordRejection(optionId, rejectedOn, reason);
+  },
+);
+
+/**
+ * Edit an existing Rejection — change the Option, move the date (including
+ * between past and future), or edit the reason. A collision on
+ * `(option_id, rejected_on)` is reported inline via `rejectionWriteError` —
+ * never silently merged; the row is left untouched on a failed update.
+ */
+export const updateRejection = authedAction(
+  async (
+    id: string,
+    values: { optionId: string; rejectedOn: string; reason?: string },
+  ): Promise<ActionResult> => {
+    if (!isValidSqlDate(values.rejectedOn)) return err("Pick a valid date");
     try {
-      await db.insert(rejections).values({
-        optionId,
-        rejectedOn: todaySqlDate(),
-        reason: trimmedReason,
-      });
+      await db
+        .update(rejections)
+        .set({
+          optionId: values.optionId,
+          rejectedOn: values.rejectedOn,
+          reason: trimToNull(values.reason),
+        })
+        .where(eq(rejections.id, id));
     } catch (error) {
-      const code = pgCode(error);
-      if (code === "22P02" || code === "23503") {
-        return err("That option is no longer available");
-      }
+      const message = rejectionWriteError(error);
+      if (message !== null) return err(message);
       throw error;
     }
-    revalidatePath("/");
-    revalidatePath("/log");
-    // `/catalog/[id]` is revalidated as a dynamic route segment so every
-    // Option detail page invalidates at once; the route lands in a later
-    // phase (ticket 22) and the call is a harmless no-op until then.
-    revalidatePath("/catalog/[id]", "page");
+    revalidateRejectionViews();
     return ok();
   },
 );
 
 /**
  * Delete a Rejection row by id. The single write path for "Bring back" on the
- * Rejected-tonight disclosure (ticket 20): the row is removed entirely rather
- * than expired, so a mis-tapped Rejection never reaches AI search and never
- * teaches the model anything. Bringing back is the same row delete regardless
- * of how the Household reached it, so there is no separate
- * `bringBackRejection` — one shared `authedAction`-wrapped action covers both.
+ * Rejected-tonight disclosure (ticket 20) and the explicit delete on the Log
+ * / Option detail Rejection rows (tickets 32, 33). The row is removed
+ * entirely rather than expired, so a mis-tapped Rejection never reaches AI
+ * search and never teaches the model anything (ADR-0006).
  *
- * Thin by design — no logic beyond the delete — following the existing
- * `pickTonight` / `rejectOption` pattern. A malformed uuid (`22P02`) is
- * mapped inline to the same "no longer available" copy the reject path uses;
- * a delete that matches no rows is treated as already-deleted and returns
- * `ok()` (a second tap of "Bring back" after revalidation is a no-op, not an
- * error). Anything else rethrows so Next's error boundary handles it.
+ * Bringing back is the same row delete regardless of how the Household
+ * reached it, so there is one shared `authedAction`-wrapped action — no
+ * separate `bringBackRejection`.
  *
- * The same three views the reject path revalidates are revalidated here so
- * the Option returns to tonight's list immediately on the next render.
+ * A delete that matches no rows is a no-op rather than an error (a second tap
+ * of "Bring back" after revalidation is harmless). A malformed uuid
+ * (`22P02`) is mapped inline to the same "no longer available" copy the
+ * create path uses; anything else rethrows.
  */
 export const deleteRejection = authedAction(
   async (rejectionId: string): Promise<ActionResult> => {
     try {
       await db.delete(rejections).where(eq(rejections.id, rejectionId));
     } catch (error) {
-      const code = pgCode(error);
-      if (code === "22P02") {
-        return err("That option is no longer available");
-      }
+      const message = rejectionWriteError(error);
+      if (message !== null) return err(message);
       throw error;
     }
-    revalidatePath("/");
-    revalidatePath("/log");
-    revalidatePath("/catalog/[id]", "page");
+    revalidateRejectionViews();
     return ok();
+  },
+);
+
+/**
+ * Reject an Option for tonight — the live Tonight row's reject control. A
+ * thin wrapper that dates the Rejection to the Household's `today()` and
+ * delegates to `recordRejection`, inheriting the `23505` collision handling
+ * so a double-tap (or rejecting an Option already rejected today by hand)
+ * returns the inline collision error rather than a 500.
+ */
+export const rejectOption = authedAction(
+  async (optionId: string, reason?: string): Promise<ActionResult> => {
+    return recordRejection(optionId, todaySqlDate(), reason);
   },
 );
