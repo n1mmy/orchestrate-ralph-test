@@ -4,6 +4,13 @@ import type { ActiveCatalog } from "@/db/queries";
 type Props = {
   catalog: ActiveCatalog;
   tagSuggestions: string[];
+  /**
+   * Whether `GOOGLE_PLACES_API_KEY` is set on the server. When false, the
+   * Restaurant form's `PlacesSearchBox` is not rendered at all and the
+   * form degrades to plain manual entry. Resolved in the server component
+   * (`page.tsx`) and threaded down so this client tree never sees the key.
+   */
+  placesEnabled: boolean;
 };
 
 /**
@@ -11,7 +18,7 @@ type Props = {
  * Identical on phone and desktop (a single `.column`). Empty Catalog shows
  * the §17 placeholder line.
  */
-export function CatalogScreen({ catalog, tagSuggestions }: Props) {
+export function CatalogScreen({ catalog, tagSuggestions, placesEnabled }: Props) {
   const empty = catalog.home.length === 0 && catalog.restaurants.length === 0;
 
   return (
@@ -28,6 +35,7 @@ export function CatalogScreen({ catalog, tagSuggestions }: Props) {
         rows={catalog.home}
         addLabel="+ Add a meal"
         tagSuggestions={tagSuggestions}
+        placesEnabled={placesEnabled}
       />
       <OptionSection
         title="Restaurants"
@@ -35,6 +43,7 @@ export function CatalogScreen({ catalog, tagSuggestions }: Props) {
         rows={catalog.restaurants}
         addLabel="+ Add a restaurant"
         tagSuggestions={tagSuggestions}
+        placesEnabled={placesEnabled}
       />
     </main>
   );

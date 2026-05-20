@@ -13,6 +13,7 @@ type Props = {
   rows: CatalogRow[];
   addLabel: string;
   tagSuggestions: string[];
+  placesEnabled: boolean;
 };
 
 /**
@@ -26,6 +27,7 @@ export function OptionSection({
   rows,
   addLabel,
   tagSuggestions,
+  placesEnabled,
 }: Props) {
   const [adding, setAdding] = useState(false);
 
@@ -38,6 +40,7 @@ export function OptionSection({
             key={row.id}
             row={row}
             tagSuggestions={tagSuggestions}
+            placesEnabled={placesEnabled}
           />
         ))}
       </ul>
@@ -46,6 +49,7 @@ export function OptionSection({
           kind={kind}
           onDone={() => setAdding(false)}
           tagSuggestions={tagSuggestions}
+          placesEnabled={placesEnabled}
         />
       ) : (
         <button
