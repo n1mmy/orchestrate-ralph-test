@@ -3,6 +3,10 @@
 Status: ready-for-agent
 Type: AFK
 
+## Comments
+
+- 2026-05-20 (attempt 1): merge conflict against the integration tip — your worker branch touched `app/page.tsx` and `app/tonight-screen.tsx`, but ticket 09's AI-search UI (search box inside the Picker, `onAiActiveChange` plumbing in `TonightScreen`) landed in the same files first. `db/queries.ts` and `app/tonight-row.tsx` auto-merged cleanly. Next attempt: branch off the new integration tip and stack the Reject control + page-level rejection filter onto the AI-search-enabled `TonightScreen`.
+
 ## Parent
 
 [PRD: Pick Me a Dinner — whole-app build](../PRD.md)
