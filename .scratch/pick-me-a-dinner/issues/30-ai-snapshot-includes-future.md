@@ -1,6 +1,6 @@
 # 30 — AI snapshot includes the future
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -25,14 +25,14 @@ Extend `lib/rejections.test.ts` and `lib/ai-search.test.ts` for the future-dated
 
 ## Acceptance criteria
 
-- [ ] `db/queries.ts` exports `getFullLogForSnapshot()` returning every `dinner_log` row of an active Option, all dates, as `{ optionId, eatenOn, note }`
-- [ ] `aiSearchAction` feeds the snapshot from `getFullLogForSnapshot()`, not from `getTonightData`'s non-future `logEntries`; `getTonightData` is still read for the active Catalog `options`
-- [ ] `buildSnapshot`'s snapshot `log` includes future-dated entries, newest-`eatenOn`-first, each with its real weekday-formatted date
-- [ ] The deterministic ranking (`lib/ranking.ts`) and `getTonightData`'s `eaten_on <= today` filter are unchanged — only the AI path sees the future
-- [ ] `partitionRejections` keeps two groups; `notTodayRejections` carries past *and* future-dated rows; `suppressedToday` stays `rejectedOn === today` only
-- [ ] The not-today group's snapshot type field, the `ModelSnapshot.rejections` doc, and the system prompt read date-neutrally and state rows may be future-dated
-- [ ] An Option whose only Rejection is future-dated stays in the candidate `options`
-- [ ] `lib/rejections.test.ts` and `lib/ai-search.test.ts` cover the future-dated Rejection, future-dated Log entry, and future-only-rejection-stays-candidate cases; no live Anthropic call in any test
+- [x] `db/queries.ts` exports `getFullLogForSnapshot()` returning every `dinner_log` row of an active Option, all dates, as `{ optionId, eatenOn, note }`
+- [x] `aiSearchAction` feeds the snapshot from `getFullLogForSnapshot()`, not from `getTonightData`'s non-future `logEntries`; `getTonightData` is still read for the active Catalog `options`
+- [x] `buildSnapshot`'s snapshot `log` includes future-dated entries, newest-`eatenOn`-first, each with its real weekday-formatted date
+- [x] The deterministic ranking (`lib/ranking.ts`) and `getTonightData`'s `eaten_on <= today` filter are unchanged — only the AI path sees the future
+- [x] `partitionRejections` keeps two groups; `notTodayRejections` carries past *and* future-dated rows; `suppressedToday` stays `rejectedOn === today` only
+- [x] The not-today group's snapshot type field, the `ModelSnapshot.rejections` doc, and the system prompt read date-neutrally and state rows may be future-dated
+- [x] An Option whose only Rejection is future-dated stays in the candidate `options`
+- [x] `lib/rejections.test.ts` and `lib/ai-search.test.ts` cover the future-dated Rejection, future-dated Log entry, and future-only-rejection-stays-candidate cases; no live Anthropic call in any test
 
 ## Blocked by
 

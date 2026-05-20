@@ -230,6 +230,28 @@ describe("buildSnapshot", () => {
     });
     expect(snapshot.log).toHaveLength(baseLog.length);
   });
+
+  it("surfaces a future-dated Log entry (Planned dinner) at the top with its real weekday-formatted date — the AI path sees the Household's near future (ticket 30)", () => {
+    // A Log made up only of a future-dated entry — what `getFullLogForSnapshot`
+    // produces for an Option with a single Planned dinner ahead.
+    const futureLog: SnapshotLogEntry[] = [
+      { optionId: ALICE_ID, eatenOn: "2026-05-10", note: "past Friday" },
+      { optionId: BANH_ID, eatenOn: "2026-05-25", note: "planned Monday" },
+    ];
+    const { snapshot } = buildSnapshot({
+      options: baseOptions,
+      log: futureLog,
+      rejections: [],
+      today: "2026-05-20",
+      query: "",
+    });
+    // Newest first sort puts the future-dated row at the top, carrying its
+    // real date and the weekday derived from it.
+    expect(snapshot.log[0]?.eatenOn).toBe("2026-05-25");
+    expect(snapshot.log[0]?.weekday).toBe("Monday");
+    expect(snapshot.log[0]?.note).toBe(delimited("planned Monday"));
+    expect(snapshot.log[1]?.eatenOn).toBe("2026-05-10");
+  });
 });
 
 /**
@@ -361,7 +383,7 @@ describe("buildSnapshot — Rejections block", () => {
     expect(entry.reason).toBe(delimited("had it last week"));
   });
 
-  it("a future-dated Planned rejection lands in notTodayRejections with its Option still a candidate", () => {
+  it("a future-dated Planned rejection lands in notTodayRejections with its Option still a candidate (ticket 30)", () => {
     const rejections: RejectionRow[] = [
       {
         optionId: CHICKEN_ID,
@@ -380,15 +402,23 @@ describe("buildSnapshot — Rejections block", () => {
       query: "",
     });
 
-    // Chicken Soup (id 3) is still a candidate — a future Rejection is
-    // habit signal, not today's suppression.
-    expect(idByIndex["3"]).toBe(CHICKEN_ID);
+    // Chicken Soup is still a candidate Option — an Option whose ONLY
+    // Rejection is future-dated stays in the candidate set. The integer
+    // numbering carries no gap: 1=Alice, 2=Banh, 3=Chicken.
+    expect(snapshot.options.map((o) => o.id)).toEqual([1, 2, 3]);
+    expect(idByIndex).toEqual({
+      "1": ALICE_ID,
+      "2": BANH_ID,
+      "3": CHICKEN_ID,
+    });
 
     expect(snapshot.rejections.rejectedTonight).toEqual([]);
     expect(snapshot.rejections.notTodayRejections).toHaveLength(1);
     const entry = snapshot.rejections.notTodayRejections[0]!;
     expect(entry.optionId).toBe(3);
+    // The future Rejection carries its real weekday-formatted date.
     expect(entry.date).toBe("2026-05-24 (Sunday)");
+    expect(entry.reason).toBe(delimited("guests over"));
   });
 
   it("carries a null reason through as null on the block entry", () => {

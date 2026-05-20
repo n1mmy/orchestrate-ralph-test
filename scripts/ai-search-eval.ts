@@ -7,7 +7,8 @@
  * The harness reads exactly the same dated inputs as the server action:
  *
  *  - the active Catalog (`getTonightData`)
- *  - the full Log (`getTonightData`'s `fullLog`)
+ *  - the full Log including future-dated Planned dinners
+ *    (`getFullLogForSnapshot`)
  *  - the Rejection history (`getRejections`)
  *  - today's calendar day (`lib/local-day`'s `today`)
  *
@@ -56,7 +57,11 @@ import {
   type SearchResult,
   type TailMode,
 } from "@/lib/ai-search";
-import { getRejections, getTonightData } from "@/db/queries";
+import {
+  getFullLogForSnapshot,
+  getRejections,
+  getTonightData,
+} from "@/db/queries";
 import { today as todaySqlDate } from "@/lib/local-day";
 
 /** A parsed view of the harness's command-line flags. Everything optional. */
@@ -102,8 +107,9 @@ function parseArgs(argv: string[]): Args {
 /** Load the same dated inputs `aiSearchAction` loads. */
 async function loadInputs(query: string) {
   const todaySql = todaySqlDate();
-  const [{ options, fullLog }, rejections] = await Promise.all([
+  const [{ options }, fullLog, rejections] = await Promise.all([
     getTonightData(todaySql),
+    getFullLogForSnapshot(),
     getRejections(),
   ]);
   return {

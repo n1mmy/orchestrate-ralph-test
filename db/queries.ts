@@ -132,7 +132,7 @@ export async function getActiveCatalog(): Promise<ActiveCatalog> {
 }
 
 /**
- * The four inputs the Tonight screen needs:
+ * The three inputs the Tonight screen needs:
  *
  * - **`options`** — the active Catalog, each Option carrying the fields the
  *   ranker reads (`id`, `name`, `kind`, `tags`) plus the two pass-through
@@ -144,12 +144,6 @@ export async function getActiveCatalog(): Promise<ActiveCatalog> {
  *   Option's history does not count (per CONTEXT.md's Recency definition).
  *   The ranking math has not changed — `rankTonight` still receives exactly
  *   this set.
- * - **`fullLog`** — every `dinner_log` row joined to its active Option, past
- *   and future-dated alike, each carrying `optionId`, `eatenOn` (SQL date
- *   string), and the optional `note`. Fed straight into the AI-search
- *   snapshot, which wants the full Log including Planned dinners and the
- *   per-entry note — distinct from the integer-epoch `entries` the ranker
- *   reads.
  * - **`todayEntries`** — the `dinner_log` rows whose `eaten_on` equals today,
  *   each `{ id, optionId, createdAt }`. The Tonight screen reads this set to
  *   decide its mode (empty → picker, non-empty → decided) and to render the
@@ -162,6 +156,11 @@ export async function getActiveCatalog(): Promise<ActiveCatalog> {
  * `eaten_on` is converted to an integer epoch-day at the boundary so the
  * downstream ranker sees only integers — no date arithmetic happens in SQL,
  * and DST cannot perturb the day delta. See ADR-0003 and `lib/local-day.ts`.
+ *
+ * The AI-search snapshot wants the **full** Log — past and future-dated rows
+ * alike — and so reads from `getFullLogForSnapshot` below, not from
+ * `getTonightData`. The deterministic ranking keeps its own non-future
+ * `entries` here; only the AI path sees the future.
  */
 export type TonightOption = RankOption & { notes: string | null };
 
@@ -175,7 +174,6 @@ export type TonightLogEntry = {
 export type TonightData = {
   options: TonightOption[];
   entries: RankLogEntry[];
-  fullLog: TonightLogEntry[];
   todayEntries: TodayLogEntry[];
 };
 
@@ -234,27 +232,6 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
     eatenOn: epochDayFromSqlDate(r.eatenOn),
   }));
 
-  // The full Log — past and future-dated alike — joined to active Options
-  // only. Fed straight into the AI-search snapshot (which wants Planned
-  // dinners and the per-entry note); kept as the raw SQL date strings, not
-  // the integer epoch-day form, because the snapshot serialises dates as
-  // strings and the model reads weekdays off them.
-  const fullLogRows = await db
-    .select({
-      optionId: dinnerLog.optionId,
-      eatenOn: dinnerLog.eatenOn,
-      note: dinnerLog.note,
-    })
-    .from(dinnerLog)
-    .innerJoin(options, eq(options.id, dinnerLog.optionId))
-    .where(eq(options.active, true));
-
-  const fullLog: TonightLogEntry[] = fullLogRows.map((r) => ({
-    optionId: r.optionId,
-    eatenOn: r.eatenOn,
-    note: r.note,
-  }));
-
   // Today's Log entries — the handle the decided block renders by. Includes
   // entries whose Option is Archived (no `active = true` filter) so the
   // Household still sees a settled Pick after Archiving an Option mid-evening;
@@ -278,9 +255,41 @@ export async function getTonightData(todaySql: string): Promise<TonightData> {
   return {
     options: Array.from(byId.values()),
     entries,
-    fullLog,
     todayEntries,
   };
+}
+
+/**
+ * Every `dinner_log` row joined to an active Option, **regardless of date** —
+ * past entries and future-dated Planned dinners alike — in the `TonightLogEntry`
+ * shape (`{ optionId, eatenOn, note }`). Fed straight into the AI-search
+ * snapshot, which wants the Household's near future (Planned dinners) in
+ * addition to its history — the model, given today's date, tells plan from
+ * history itself (ADR-0005, widened by ticket 30).
+ *
+ * Kept as raw SQL `date` strings, not integer epoch-day form, because the
+ * snapshot serialises dates as strings and the model reads weekdays off them.
+ *
+ * The AI-snapshot counterpart of `getTonightData`'s `entries`, which filters
+ * `eaten_on <= today` for the deterministic ranking. Only active Options are
+ * joined, mirroring how `getTonightData` already excludes Archived Options'
+ * Log rows from AI search.
+ */
+export async function getFullLogForSnapshot(): Promise<TonightLogEntry[]> {
+  const rows = await db
+    .select({
+      optionId: dinnerLog.optionId,
+      eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
+    })
+    .from(dinnerLog)
+    .innerJoin(options, eq(options.id, dinnerLog.optionId))
+    .where(eq(options.active, true));
+  return rows.map((r) => ({
+    optionId: r.optionId,
+    eatenOn: r.eatenOn,
+    note: r.note,
+  }));
 }
 
 /**
