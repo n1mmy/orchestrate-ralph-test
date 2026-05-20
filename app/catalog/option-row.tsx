@@ -10,6 +10,7 @@ type Mode = "idle" | "editing" | "confirm-archive" | "confirm-delete";
 
 type Props = {
   row: CatalogRow;
+  tagSuggestions: string[];
 };
 
 /**
@@ -20,7 +21,7 @@ type Props = {
  * step. No modal, no undo-toast. A failed delete (Option has Log history)
  * surfaces the friendly inline message returned by the server action.
  */
-export function OptionRow({ row }: Props) {
+export function OptionRow({ row, tagSuggestions }: Props) {
   const [mode, setMode] = useState<Mode>("idle");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -41,8 +42,10 @@ export function OptionRow({ row }: Props) {
             lat: row.lat,
             lng: row.lng,
             googlePlaceId: row.googlePlaceId,
+            tags: row.tags,
           }}
           onDone={() => setMode("idle")}
+          tagSuggestions={tagSuggestions}
         />
       </li>
     );

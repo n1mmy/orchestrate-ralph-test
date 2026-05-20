@@ -12,6 +12,7 @@ type Props = {
   kind: OptionKind;
   rows: CatalogRow[];
   addLabel: string;
+  tagSuggestions: string[];
 };
 
 /**
@@ -19,7 +20,13 @@ type Props = {
  * name order and exposes a per-section "+ Add a meal" / "+ Add a restaurant"
  * button that expands the OptionForm inline in place.
  */
-export function OptionSection({ title, kind, rows, addLabel }: Props) {
+export function OptionSection({
+  title,
+  kind,
+  rows,
+  addLabel,
+  tagSuggestions,
+}: Props) {
   const [adding, setAdding] = useState(false);
 
   return (
@@ -27,11 +34,19 @@ export function OptionSection({ title, kind, rows, addLabel }: Props) {
       <h2 className="font-display text-name text-ink">{title}</h2>
       <ul className="flex flex-col">
         {rows.map((row) => (
-          <OptionRow key={row.id} row={row} />
+          <OptionRow
+            key={row.id}
+            row={row}
+            tagSuggestions={tagSuggestions}
+          />
         ))}
       </ul>
       {adding ? (
-        <OptionForm kind={kind} onDone={() => setAdding(false)} />
+        <OptionForm
+          kind={kind}
+          onDone={() => setAdding(false)}
+          tagSuggestions={tagSuggestions}
+        />
       ) : (
         <button
           type="button"

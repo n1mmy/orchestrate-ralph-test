@@ -1,6 +1,6 @@
 # 04 — Tags on Options + prior-version data import
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -98,38 +98,47 @@ script reads its input either from a JSON dump path (`argv[2]`) or, when
 
 ### Tags on Options
 
-- [ ] The Catalog `OptionForm` has the `TagInput` autocomplete token input —
+- [x] The Catalog `OptionForm` has the `TagInput` autocomplete token input —
       an ARIA combobox that suggests existing Tags and offers a `Create "…"`
       row for free text
-- [ ] `normalizeTag` is a shared pure function that trims and lowercases; both
+- [x] `normalizeTag` is a shared pure function that trims and lowercases; both
       `TagInput` and the tag-attach server path (and the import script below)
       call it
-- [ ] `syncOptionTags` runs inside the `createOption`/`updateOption`
+- [x] `syncOptionTags` runs inside the `createOption`/`updateOption`
       transaction, normalizes + dedupes the Tag set, and `resolveTagId` reuses
       an existing Tag for a case-insensitive match — adding "Pasta" when "pasta"
       exists creates no duplicate `tags` row
-- [ ] Tags attach/detach via `option_tags` rows and persist across reloads
-- [ ] `lib/normalize-tag.test.ts` covers: trims, lowercases, leaves an
+- [x] Tags attach/detach via `option_tags` rows and persist across reloads
+- [x] `lib/normalize-tag.test.ts` covers: trims, lowercases, leaves an
       already-normal Tag unchanged
 
 ### Prior-version data import
 
-- [ ] `mapPriorData` maps `Meal` / `Restaurant` / `Dinner` into `options` /
+- [x] `mapPriorData` maps `Meal` / `Restaurant` / `Dinner` into `options` /
       `tags` / `option_tags` / `dinner_log` rows with fresh uuids and rewired
       `Dinner` FKs; an unresolvable FK throws before any DB write
-- [ ] `hidden` is inverted to `active`; `orderUrl` / `menuUrl` coalesce into
+- [x] `hidden` is inverted to `active`; `orderUrl` / `menuUrl` coalesce into
       one `url`; `phoneNumber` → `phone`
-- [ ] Tags are normalized via the shared `normalizeTag` helper and deduped
+- [x] Tags are normalized via the shared `normalizeTag` helper and deduped
       across all Options into `tags` + `option_tags`
-- [ ] `dinner_log.created_at` is set to the Dinner's date at local midnight in
+- [x] `dinner_log.created_at` is set to the Dinner's date at local midnight in
       `APP_TZ` (`localMidnightUtc`); absent Restaurant / Home fields import as
       `null`
-- [ ] `runImport` maps outside the transaction, then inserts all four tables in
+- [x] `runImport` maps outside the transaction, then inserts all four tables in
       one `db.transaction` that rolls back fully on any failure
-- [ ] `scripts/import-prior-data.db.test.ts` covers mapping correctness
+- [x] `scripts/import-prior-data.db.test.ts` covers mapping correctness
       (`hidden→active` inverted, `url` coalesced, tags normalized + deduped,
       the `created_at` local-midnight rule) and the all-or-nothing rollback
 
 ## Blocked by
 
 - 03 — Options catalog: CRUD
+
+## Comments
+
+- Shipped `normalizeTag` (`lib/normalize-tag.ts`) + `localMidnightUtc`
+  (`lib/local-midnight.ts`), `TagInput` ARIA-combobox token input,
+  `syncOptionTags` / `resolveTagId` inside the Catalog `db.transaction`, and
+  the one-off `scripts/import-prior-data.ts` with the pure `mapPriorData`
+  core and an all-or-nothing `runImport` transaction. Verification gate
+  (`pnpm typecheck` / `pnpm test` / `pnpm build`) green.
