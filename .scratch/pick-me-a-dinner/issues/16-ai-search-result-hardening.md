@@ -1,6 +1,6 @@
 # 16 — AI search: result hardening and empty state
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -50,24 +50,24 @@ stays `ok: true`.
 
 ## Acceptance criteria
 
-- [ ] `parseAndValidate` skips a malformed entry (non-string `reason`, or an
+- [x] `parseAndValidate` skips a malformed entry (non-string `reason`, or an
       `id` that is not an integer or numeric string) while keeping the valid
       rows around it
-- [ ] `parseAndValidate` accepts a numeric-string `id` and rejects a float
-- [ ] `parseAndValidate` dedupes a repeated Option, keeping the first occurrence
-- [ ] `parseAndValidate` truncates a rationale over ~200 characters
+- [x] `parseAndValidate` accepts a numeric-string `id` and rejects a float
+- [x] `parseAndValidate` dedupes a repeated Option, keeping the first occurrence
+- [x] `parseAndValidate` truncates a rationale over ~200 characters
       (`MAX_RATIONALE_LENGTH`) at the last word boundary with an ellipsis, and
       leaves a rationale within the cap unchanged
-- [ ] An empty-string `reason` is kept by `parseAndValidate`; an AI row with an
+- [x] An empty-string `reason` is kept by `parseAndValidate`; an AI row with an
       empty `aiReason` renders no rationale line — just the name and chips
-- [ ] An empty AI result (`results: []`) renders a plain empty-state message
+- [x] An empty AI result (`results: []`) renders a plain empty-state message
       with a clear control that returns the screen to the deterministic list
-- [ ] Unit tests (`lib/ai-search.test.ts`) cover the skipped malformed entry,
+- [x] Unit tests (`lib/ai-search.test.ts`) cover the skipped malformed entry,
       numeric-string acceptance, dedup, word-boundary truncation, a short
       rationale left unchanged, and an empty-string `reason` kept; a screen-level
       test covers an empty-reason row rendering no rationale paragraph and the
       empty-result empty-state
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
 
 ## Blocked by
 

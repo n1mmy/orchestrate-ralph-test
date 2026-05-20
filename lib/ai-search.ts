@@ -336,6 +336,54 @@ export type ModelRankEntry = { id: number; reason: string };
 /** One row in the validated, UUID-mapped ranking the action layer renders. */
 export type RankedResult = { optionId: string; reason: string };
 
+/**
+ * Generous cap on the AI rationale length. The rationale names the *pattern*
+ * behind a placement ("Sushi runs ~weekly, 9 days out") and needs room; the
+ * prompt asks for one short line and the cap only catches a model that ignores
+ * that. Over-long values are truncated at the last word boundary within the
+ * cap (with an ellipsis); a single over-long word with no space is cut at the
+ * cap itself.
+ */
+export const MAX_RATIONALE_LENGTH = 200;
+
+/**
+ * Map a raw `id` field from the model's tool input to a snapshot index. The
+ * model is told to write integers, but the wire format is JSON and a number
+ * that arrived as a digits-only string is unambiguous, so we accept it.
+ *
+ * Accepts a JSON integer or a digits-only string ("3"); rejects a float
+ * ("3.5", `3.5`), a non-numeric string ("3a", ""), `null`, `undefined`, or any
+ * other type. Returns the integer on success, `null` on rejection.
+ */
+function toIndex(raw: unknown): number | null {
+  if (typeof raw === "number") {
+    return Number.isInteger(raw) ? raw : null;
+  }
+  if (typeof raw === "string") {
+    if (!/^\d+$/.test(raw)) return null;
+    const n = Number(raw);
+    return Number.isInteger(n) ? n : null;
+  }
+  return null;
+}
+
+/**
+ * Truncate an AI rationale at `MAX_RATIONALE_LENGTH`. A rationale within the
+ * cap is returned unchanged. An over-long rationale is cut at the last word
+ * boundary within the cap and marked with an ellipsis; a single over-long word
+ * with no space inside the cap is cut at the cap itself with an ellipsis
+ * appended.
+ */
+function truncateRationale(reason: string): string {
+  if (reason.length <= MAX_RATIONALE_LENGTH) return reason;
+  const head = reason.slice(0, MAX_RATIONALE_LENGTH);
+  const lastSpace = head.lastIndexOf(" ");
+  if (lastSpace <= 0) {
+    return `${head}…`;
+  }
+  return `${head.slice(0, lastSpace).trimEnd()}…`;
+}
+
 /** The system prompt — kept short and explicit. The model is told its job, the
  * shape of the snapshot, and the strict requirement to use the tool. */
 export function buildSystemPrompt(): string {
@@ -365,9 +413,15 @@ export function buildSystemPrompt(): string {
  *    — including a genuinely empty `ranking: []`. The client returns this as
  *    `ok: true` and the empty-state handling (ticket 16) takes it from there.
  *
- * Individual rows whose `id` is not an integer, whose `reason` is not a
- * string, or whose `id` is a hallucination outside the snapshot's id range
- * are dropped silently — that's not malformed-as-a-whole, just a row to skip.
+ * Individual rows whose `id` is neither an integer nor a digits-only string
+ * (`toIndex`), whose `reason` is not a string, or whose `id` is a
+ * hallucination outside the snapshot's id range are dropped silently — that's
+ * not malformed-as-a-whole, just a row to skip. A repeated Option keeps the
+ * **first** occurrence; later duplicates are skipped. An over-long `reason`
+ * is truncated at `MAX_RATIONALE_LENGTH` (`truncateRationale`); an
+ * empty-string `reason` is kept as-is — in `pithy` tail mode the model
+ * deliberately returns an empty rationale for an obviously bad pick, and the
+ * row should render as if it were a deterministic row (no rationale line).
  */
 export function parseAndValidate(
   toolInput: unknown,
@@ -377,15 +431,18 @@ export function parseAndValidate(
   const ranking = (toolInput as { ranking?: unknown }).ranking;
   if (!Array.isArray(ranking)) return null;
   const out: RankedResult[] = [];
+  const seen = new Set<string>();
   for (const raw of ranking) {
     if (!raw || typeof raw !== "object") continue;
-    const id = (raw as { id?: unknown }).id;
     const reason = (raw as { reason?: unknown }).reason;
-    if (typeof id !== "number" || !Number.isInteger(id)) continue;
     if (typeof reason !== "string") continue;
+    const id = toIndex((raw as { id?: unknown }).id);
+    if (id === null) continue;
     const optionId = idByIndex[String(id)];
     if (optionId === undefined) continue; // hallucinated integer
-    out.push({ optionId, reason });
+    if (seen.has(optionId)) continue; // dedup: keep the first occurrence
+    seen.add(optionId);
+    out.push({ optionId, reason: truncateRationale(reason) });
   }
   return out;
 }

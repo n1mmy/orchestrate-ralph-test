@@ -315,6 +315,14 @@ function AiSearchBox({
 
       {aiRows === null ? (
         children
+      ) : aiRows.length === 0 ? (
+        // The model legitimately returned zero Options (a real answer, not a
+        // Failure — `ok: true` upstream). Mirror the "No Options match the
+        // current filter" empty state with a plain message plus a clear
+        // control that returns the screen to the deterministic list.
+        <p className="mt-sm text-body text-muted">
+          No Options fit that search.
+        </p>
       ) : (
         <ol className="flex flex-col">
           {aiRows.map(({ row, reason }, idx) => (

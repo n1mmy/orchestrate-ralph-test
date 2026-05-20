@@ -386,4 +386,63 @@ describe("AI search (rendered by TonightScreen)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     expect(screen.queryByText("Search unavailable — try again")).toBeNull();
   });
+
+  it("an AI row with an empty-string reason renders no rationale paragraph — just the name and chips", async () => {
+    aiSearchAction.mockReset();
+    aiSearchAction.mockResolvedValueOnce({
+      ok: true,
+      results: [
+        { optionId: "opt-a", reason: "Friday pizza tradition." },
+        // The model judged Banh Mi an obviously bad pick and returned no
+        // rationale — the row must read like a deterministic row.
+        { optionId: "opt-b", reason: "" },
+      ],
+    });
+    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => {
+      expect(aiSearchAction).toHaveBeenCalledWith("");
+    });
+
+    await waitFor(() => {
+      const items = screen.getAllByRole("listitem");
+      expect(items).toHaveLength(2);
+      // First row (Alice) has the rationale rendered in its own <p>.
+      expect(items[0]?.textContent).toContain("Alice's Pizza");
+      expect(items[0]?.textContent).toContain("Friday pizza tradition.");
+      // Second row (Banh Mi) — name and chips only, no <p> rationale.
+      const banh = items[1];
+      expect(banh?.textContent).toContain("Banh Mi");
+      // No <p> inside the second row carries any rationale text.
+      const paragraphs = banh?.querySelectorAll("p") ?? [];
+      expect(paragraphs.length).toBe(0);
+    });
+  });
+
+  it("an empty AI result renders the empty-state message with a Clear control returning to the deterministic list", async () => {
+    aiSearchAction.mockReset();
+    aiSearchAction.mockResolvedValueOnce({ ok: true, results: [] });
+    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    // The empty-state copy appears in place of the deterministic list.
+    await waitFor(() => {
+      expect(screen.getByText("No Options fit that search.")).toBeDefined();
+    });
+
+    // The deterministic rows are not rendered while the empty AI result is
+    // showing — this is a real answer, not the failure-mode fallback.
+    expect(screen.queryByText("Alice's Pizza")).toBeNull();
+    expect(screen.queryByText("Banh Mi")).toBeNull();
+
+    // Clear is exposed and restores the deterministic list.
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(screen.queryByText("No Options fit that search.")).toBeNull();
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(items[0]?.textContent).toContain("Alice's Pizza");
+    expect(items[1]?.textContent).toContain("Banh Mi");
+  });
 });
