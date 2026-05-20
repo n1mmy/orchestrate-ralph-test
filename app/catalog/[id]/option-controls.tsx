@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import { OptionForm } from "../option-form";
-import { archiveOption, deleteOption } from "../actions";
+import { archiveOption, deleteOption, unarchiveOption } from "../actions";
 import { rejectOption } from "../../rejection-actions";
 import { PickButton } from "../../pick-button";
 import type { OptionDetail } from "@/db/queries";
@@ -28,7 +28,12 @@ import type { OptionDetail } from "@/db/queries";
  * surfaces the error inline.
  *
  * **Archive** and **Delete** each take a §17 inline-confirm step
- * ("Archive · Cancel" / "Delete · Cancel"), matching the Catalog row.
+ * ("Archive · Cancel" / "Delete · Cancel"), matching the Catalog row. On an
+ * Archived Option the Archive control becomes **Un-archive** — a one-tap
+ * action that calls `unarchiveOption` directly, since restoring an Option is
+ * benign enough to skip the confirm step. The Household stays on the page;
+ * `revalidateCatalog()` refreshes `/catalog/[id]` so the toggle flips back to
+ * **Archive** on the next render.
  *
  * **Delete** renders only when `canDelete` — `page.tsx` passes
  * `optionLog.length === 0`, since the Hard-delete rule (ADR-0001) blocks
@@ -119,6 +124,19 @@ export function OptionControls({
     });
   }
 
+  function runUnarchive() {
+    clearError();
+    startTransition(async () => {
+      const result = await unarchiveOption(option.id);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      // Stay on the page — `revalidateCatalog()` re-renders this view with
+      // `option.active = true` and the toggle flips back to "Archive".
+    });
+  }
+
   function runDelete() {
     clearError();
     startTransition(async () => {
@@ -145,9 +163,15 @@ export function OptionControls({
             <ToolbarButton onClick={() => setMode("editing")}>
               Edit
             </ToolbarButton>
-            <ToolbarButton onClick={() => setMode("archive")}>
-              Archive
-            </ToolbarButton>
+            {option.active ? (
+              <ToolbarButton onClick={() => setMode("archive")}>
+                Archive
+              </ToolbarButton>
+            ) : (
+              <ToolbarButton onClick={runUnarchive} disabled={pending}>
+                Un-archive
+              </ToolbarButton>
+            )}
             {canDelete ? (
               <ToolbarButton onClick={() => setMode("delete")}>
                 Delete
@@ -172,9 +196,15 @@ export function OptionControls({
             <ToolbarButton onClick={() => setMode("editing")} disabled>
               Edit
             </ToolbarButton>
-            <ToolbarButton onClick={() => setMode("archive")} disabled>
-              Archive
-            </ToolbarButton>
+            {option.active ? (
+              <ToolbarButton onClick={() => setMode("archive")} disabled>
+                Archive
+              </ToolbarButton>
+            ) : (
+              <ToolbarButton onClick={runUnarchive} disabled>
+                Un-archive
+              </ToolbarButton>
+            )}
             {canDelete ? (
               <ToolbarButton onClick={() => setMode("delete")} disabled>
                 Delete

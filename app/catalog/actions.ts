@@ -247,6 +247,24 @@ export const archiveOption = authedAction(
 );
 
 /**
+ * Un-archive an Option (`active = true`). The mirror of `archiveOption`: the
+ * Option rejoins the default Catalog list and the Tonight ranking, and its
+ * Log history (which was never hidden) keeps counting against per-Option and
+ * per-Tag recency again. Benign enough to run in one tap — no §17 confirm —
+ * because it only restores an Option's visibility; nothing is destroyed.
+ */
+export const unarchiveOption = authedAction(
+  async (id: string): Promise<ActionResult> => {
+    await db
+      .update(options)
+      .set({ active: true })
+      .where(eq(options.id, id));
+    revalidateCatalog();
+    return ok();
+  },
+);
+
+/**
  * Hard-delete an Option. Allowed only for an Option with zero Log entries —
  * the `dinner_log.option_id` `ON DELETE RESTRICT` constraint enforces that at
  * the DB level. A `23503` is translated by `pgErrorMessage` into the inline

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { CatalogScreen } from "./catalog-screen";
 import type { ActiveCatalog } from "@/db/queries";
 
@@ -34,6 +34,34 @@ describe("CatalogScreen", () => {
     expect(
       screen.getByRole("button", { name: "+ Add a restaurant" }),
     ).toBeDefined();
+  });
+
+  it("does not render the Archived disclosure when nothing is Archived", () => {
+    render(<CatalogScreen catalog={EMPTY} tagSuggestions={[]} />);
+    expect(screen.queryByRole("button", { name: /Archived/ })).toBeNull();
+  });
+
+  it("renders a collapsed 'Archived (N)' disclosure that expands to links into each Option's detail page", () => {
+    render(
+      <CatalogScreen
+        catalog={EMPTY}
+        archived={[
+          { id: "arc-1", name: "Old Pasta" },
+          { id: "arc-2", name: "Retired Sushi" },
+        ]}
+        tagSuggestions={[]}
+      />,
+    );
+    const button = screen.getByRole("button", { name: "Archived (2)" });
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    // Collapsed by default — the links are not in the DOM yet.
+    expect(screen.queryByRole("link", { name: "Old Pasta" })).toBeNull();
+    fireEvent.click(button);
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    const link1 = screen.getByRole("link", { name: "Old Pasta" });
+    const link2 = screen.getByRole("link", { name: "Retired Sushi" });
+    expect(link1.getAttribute("href")).toBe("/catalog/arc-1");
+    expect(link2.getAttribute("href")).toBe("/catalog/arc-2");
   });
 
   it("renders each Option row by name with Edit / Archive / Delete actions", () => {

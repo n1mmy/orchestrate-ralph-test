@@ -5,6 +5,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 // These keep the unit test DB-free; the actions' own DB behavior is covered
 // by `actions.db.test.ts` and `rejection-actions.db.test.ts`.
 const archiveOption = vi.fn();
+const unarchiveOption = vi.fn();
 const deleteOption = vi.fn();
 const updateOption = vi.fn();
 const createOption = vi.fn();
@@ -14,6 +15,7 @@ const routerPush = vi.fn();
 
 vi.mock("../actions", () => ({
   archiveOption: (...args: unknown[]) => archiveOption(...args),
+  unarchiveOption: (...args: unknown[]) => unarchiveOption(...args),
   deleteOption: (...args: unknown[]) => deleteOption(...args),
   updateOption: (...args: unknown[]) => updateOption(...args),
   createOption: (...args: unknown[]) => createOption(...args),
@@ -69,6 +71,7 @@ function renderControls(overrides?: {
 describe("OptionControls", () => {
   beforeEach(() => {
     archiveOption.mockReset();
+    unarchiveOption.mockReset();
     deleteOption.mockReset();
     updateOption.mockReset();
     createOption.mockReset();
@@ -173,6 +176,20 @@ describe("OptionControls", () => {
     await waitFor(() => {
       expect(routerPush).toHaveBeenCalledWith("/catalog");
     });
+  });
+
+  it("renders Un-archive in place of Archive for an Archived Option, and runs it in one tap", async () => {
+    unarchiveOption.mockResolvedValueOnce({ ok: true });
+    renderControls({ option: { ...OPTION, active: false } });
+    // The toggle reads "Un-archive" — Archive is gone.
+    expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Un-archive" }));
+    await waitFor(() => {
+      expect(unarchiveOption).toHaveBeenCalledWith("opt-1");
+    });
+    // One tap — no inline confirm step, no routing change. The toolbar stays.
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Edit" })).toBeDefined();
   });
 
   it("shows an inline error and keeps the page when Delete is blocked", async () => {

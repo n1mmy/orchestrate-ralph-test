@@ -269,4 +269,38 @@ describe("rankOption", () => {
     expect(result.neverEaten).toBe(true);
     expect(result.recencyDays).toBe(CAP);
   });
+
+  it("for an Archived Option (absent from activeOptions) returns score: null but still computes recencyDays, neverEaten, and per-Tag chips", () => {
+    // `target` is Archived: it is absent from `activeOptions` and from
+    // `activeLog`. A sibling active Option carrying the same `fish` Tag was
+    // eaten 4 days ago, so the Tag chip resolves to 4 days from the active
+    // carriers — the Archived Option's own `targetLog` entries do not move
+    // its Tag chips.
+    const target = option("a", "Aji", ["fish", "japanese"]);
+    const sibling = option("c", "Salmon", ["fish"]);
+    const activeOptions: RankOption[] = [sibling];
+    const activeLog: RankLogEntry[] = [entry("c", TODAY - 4)];
+    // The Archived Option's own history — used only for `recencyDays` /
+    // `neverEaten`. The 10-day-ago `fish` entry against `a` is *not* in
+    // `activeLog`, so it must not pull the `fish` Tag chip down to 10.
+    const targetLog: RankLogEntry[] = [entry("a", TODAY - 10)];
+
+    const result = rankOption({
+      target,
+      activeOptions,
+      activeLog,
+      targetLog,
+      today: TODAY,
+    });
+
+    expect(result.score).toBeNull();
+    expect(result.recencyDays).toBe(10);
+    expect(result.neverEaten).toBe(false);
+    // `fish` has an active carrier (Salmon) eaten 4 days ago.
+    // `japanese` has no active carrier, so its per-Tag recency caps at CAP.
+    expect(result.tags).toEqual([
+      { tag: "fish", days: 4, overdue: 4 >= OVERDUE_THRESHOLD },
+      { tag: "japanese", days: CAP, overdue: CAP >= OVERDUE_THRESHOLD },
+    ]);
+  });
 });
