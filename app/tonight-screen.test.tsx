@@ -429,6 +429,132 @@ describe("AI search (rendered by TonightScreen)", () => {
     });
   });
 
+  it("hides the kind segment when an AI result swaps in and restores it on Clear", async () => {
+    aiSearchAction.mockReset();
+    aiSearchAction.mockResolvedValueOnce({
+      ok: true,
+      results: [{ optionId: "opt-b", reason: "Habit fit." }],
+    });
+    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+
+    // Before submit: the All/Home/Restaurant kind segment is in the header.
+    expect(
+      screen.getByRole("group", { name: "Filter by kind" }),
+    ).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    // After the swap: the kind segment has dropped — the query is the
+    // single ranking authority.
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("group", { name: "Filter by kind" }),
+      ).toBeNull();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    // Clearing restores the filter zone — and the deterministic list.
+    expect(
+      screen.getByRole("group", { name: "Filter by kind" }),
+    ).toBeDefined();
+  });
+
+  it("disables the search box while a search is in flight and shows a 'Searching…' pending state", async () => {
+    aiSearchAction.mockReset();
+    // A slow search — pending stays true until we resolve it. The
+    // resolver-deferred promise lets the test observe the in-flight DOM.
+    let resolveSearch: (value: { ok: true; results: never[] }) => void = () => {};
+    aiSearchAction.mockImplementationOnce(
+      () =>
+        new Promise<{ ok: true; results: never[] }>((resolve) => {
+          resolveSearch = resolve;
+        }),
+    );
+    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+
+    const input = screen.getByRole("searchbox", { name: "AI search query" });
+    fireEvent.change(input, { target: { value: "something light" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    // Pending: the search box is disabled, the submit button reads
+    // "Searching…", and the deterministic list is still visible
+    // underneath — no blank screen while we wait.
+    await waitFor(() => {
+      expect(
+        (input as HTMLInputElement).disabled,
+      ).toBe(true);
+    });
+    expect(screen.getByRole("button", { name: "Searching…" })).toBeDefined();
+    // Deterministic list survives the in-flight phase.
+    const items = screen.getAllByRole("listitem");
+    expect(items.length).toBe(2);
+    expect(items[0]?.textContent).toContain("Alice's Pizza");
+
+    // Resolve and let the swap land.
+    resolveSearch({ ok: true, results: [] });
+    await waitFor(() => {
+      expect((input as HTMLInputElement).disabled).toBe(false);
+    });
+  });
+
+  it("announces 'Searching…' in the visually-hidden polite live region while in flight", async () => {
+    aiSearchAction.mockReset();
+    let resolveSearch: (v: { ok: true; results: never[] }) => void = () => {};
+    aiSearchAction.mockImplementationOnce(
+      () =>
+        new Promise<{ ok: true; results: never[] }>((resolve) => {
+          resolveSearch = resolve;
+        }),
+    );
+    const { container } = render(
+      <TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    // The sr-only live region carries the pending announcement.
+    await waitFor(() => {
+      const liveRegions = container.querySelectorAll(
+        '.sr-only[aria-live="polite"]',
+      );
+      const text = Array.from(liveRegions)
+        .map((el) => el.textContent ?? "")
+        .join(" ");
+      expect(text).toContain("Searching…");
+    });
+
+    resolveSearch({ ok: true, results: [] });
+  });
+
+  it("announces the empty result in the sr-only live region", async () => {
+    aiSearchAction.mockReset();
+    aiSearchAction.mockResolvedValueOnce({ ok: true, results: [] });
+    const { container } = render(
+      <TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => {
+      const liveRegions = container.querySelectorAll(
+        '.sr-only[aria-live="polite"]',
+      );
+      const text = Array.from(liveRegions)
+        .map((el) => el.textContent ?? "")
+        .join(" ");
+      expect(text).toContain("No Options fit that search.");
+    });
+  });
+
+  it("the search box, Search, and Clear controls have ≥44px touch targets and a focus-visible ring", () => {
+    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+
+    const input = screen.getByRole("searchbox", { name: "AI search query" });
+    expect(input.className).toContain("min-h-[44px]");
+    expect(input.className).toMatch(/focus-visible:outline/);
+
+    const search = screen.getByRole("button", { name: "Search" });
+    expect(search.className).toContain("min-h-[44px]");
+    expect(search.className).toMatch(/focus-visible:outline/);
+  });
+
   it("an empty AI result renders the empty-state message with a Clear control returning to the deterministic list", async () => {
     aiSearchAction.mockReset();
     aiSearchAction.mockResolvedValueOnce({ ok: true, results: [] });
