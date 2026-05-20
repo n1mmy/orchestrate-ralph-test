@@ -4,6 +4,7 @@ import {
   getOptionById,
   getOptionLog,
   getOptionLogEntries,
+  getOptionRejections,
   getTonightData,
   type LogOptionChoice,
 } from "@/db/queries";
@@ -13,6 +14,7 @@ import { formatDinnerDate, groupByDay } from "@/lib/dinner-grouping";
 import { kindBarClass } from "../../kind-bar";
 import { RowChips } from "../../tonight-row";
 import { LogEntryRow } from "../../log/log-entry-row";
+import { RejectionRow } from "../../log/rejection-row";
 
 /**
  * The Option detail page — `/catalog/[id]`. A `force-dynamic` server
@@ -47,14 +49,21 @@ export default async function OptionDetailPage({
   const todaySql = todaySqlDate();
   const todayEpoch = epochDayFromSqlDate(todaySql);
 
-  const [option, targetLog, tonightData, optionLogEntries, optionChoices] =
-    await Promise.all([
-      getOptionById(id),
-      getOptionLog(id, todaySql),
-      getTonightData(todaySql),
-      getOptionLogEntries(id),
-      getLogOptionChoices(),
-    ]);
+  const [
+    option,
+    targetLog,
+    tonightData,
+    optionLogEntries,
+    optionRejections,
+    optionChoices,
+  ] = await Promise.all([
+    getOptionById(id),
+    getOptionLog(id, todaySql),
+    getTonightData(todaySql),
+    getOptionLogEntries(id),
+    getOptionRejections(id),
+    getLogOptionChoices(),
+  ]);
 
   if (!option) notFound();
 
@@ -168,6 +177,7 @@ export default async function OptionDetailPage({
 
       <HistorySection
         entries={optionLogEntries}
+        rejections={optionRejections}
         optionChoices={optionChoices}
         todaySql={todaySql}
       />
@@ -183,26 +193,32 @@ export default async function OptionDetailPage({
  * "what's coming up for this Option" ahead of realized history — then the
  * past, newest-first.
  *
- * Rejections render after that date's logged dinners within each group;
- * `getOptionRejections` and the `RejectionRow` component land in ticket 24,
- * so this slice passes an empty list and the date groups currently carry
- * only `LogEntryRow`s. The structure is fully in place for 24 to plug in.
+ * Within each date group, that day's logged dinners render first (one
+ * `LogEntryRow` each), then its Rejections (one `RejectionRow` each). The
+ * `RejectionRow` is the same component the Log screen renders (ticket 32), so
+ * a Rejection is editable and deletable in place wherever it appears —
+ * `updateRejection` / `deleteRejection` revalidate `/catalog/[id]`, so an
+ * edit or delete refreshes this page in place. There is no separate
+ * "Bring back" affordance on the detail page; bringing a Rejection back is
+ * just deleting it through the row's §17 inline-confirm Delete.
  *
  * The empty state — no Log entries and no Rejections — reads as one quiet
  * line, matching the Log screen's "nothing here yet" copy register.
  */
 function HistorySection({
   entries,
+  rejections,
   optionChoices,
   todaySql,
 }: {
   entries: Awaited<ReturnType<typeof getOptionLogEntries>>;
+  rejections: Awaited<ReturnType<typeof getOptionRejections>>;
   optionChoices: LogOptionChoice[];
   todaySql: string;
 }) {
   const { upcoming, history } = groupByDay({
     entries,
-    rejections: [],
+    rejections,
     todaySql,
   });
   const activity = [...upcoming].reverse().concat(history);
@@ -232,7 +248,13 @@ function HistorySection({
                     optionChoices={optionChoices}
                   />
                 ))}
-                {/* Rejections render here — `RejectionRow` lands in ticket 24. */}
+                {day.rejections.map((rejection) => (
+                  <RejectionRow
+                    key={rejection.id}
+                    rejection={rejection}
+                    optionChoices={optionChoices}
+                  />
+                ))}
               </ul>
             </li>
           ))}
