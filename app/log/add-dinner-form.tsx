@@ -9,6 +9,13 @@ import { logForDate } from "./actions";
 type Props = {
   options: SelectableOption[];
   today: string;
+  /**
+   * When provided, the form renders open (no leading "+ Add a dinner"
+   * button) and calls `onClose` after a successful submit or a Cancel.
+   * The caller owns the open/closed state — used by the Log screen's
+   * `TopAddControls` and per-DayGroup add controls.
+   */
+  onClose?: () => void;
 };
 
 /**
@@ -17,9 +24,14 @@ type Props = {
  * A `(option, date)` collision is a real typed mistake, so the unique-
  * conflict ("Already logged for that date") surfaces inline with the
  * user's input preserved.
+ *
+ * Two modes: standalone (no `onClose`) — the form owns the toggle button;
+ * controlled (`onClose` provided) — the form renders inline and the
+ * caller handles toggling.
  */
-export function AddDinnerForm({ options, today }: Props) {
-  const [open, setOpen] = useState(false);
+export function AddDinnerForm({ options, today, onClose }: Props) {
+  const controlled = onClose !== undefined;
+  const [open, setOpen] = useState(controlled);
   const [optionId, setOptionId] = useState(options[0]?.id ?? "");
   const [eatenOn, setEatenOn] = useState(today);
   const [note, setNote] = useState("");
@@ -33,6 +45,14 @@ export function AddDinnerForm({ options, today }: Props) {
     setError(null);
   };
 
+  const close = () => {
+    if (controlled) {
+      onClose?.();
+    } else {
+      setOpen(false);
+    }
+  };
+
   const submit = () => {
     setError(null);
     startTransition(async () => {
@@ -42,7 +62,7 @@ export function AddDinnerForm({ options, today }: Props) {
         return;
       }
       reset();
-      setOpen(false);
+      close();
     });
   };
 
@@ -112,7 +132,7 @@ export function AddDinnerForm({ options, today }: Props) {
           type="button"
           onClick={() => {
             reset();
-            setOpen(false);
+            close();
           }}
           disabled={pending}
           className="min-h-[44px] rounded-control border border-line bg-surface px-lg text-body text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink disabled:opacity-50"
