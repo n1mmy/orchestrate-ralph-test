@@ -44,7 +44,12 @@ import { delimit } from "./snapshot-format";
  * one place at the top of the module, easy to bump in a later ticket. */
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION = "2023-06-01";
-const MODEL_DEFAULT = "claude-opus-4-7";
+/**
+ * The shipping default model — Opus 4.7, the adaptive-thinking model. `AI_MODEL`
+ * overrides; an absent or empty value resolves to this. Exposed so the eval
+ * harness can name the shipping default explicitly.
+ */
+export const MODEL_DEFAULT = "claude-opus-4-7";
 /** Max tokens for a budget-API (non-streaming) request. */
 const MAX_TOKENS_BUDGET = 4096;
 /**
@@ -447,8 +452,8 @@ export type Effort = "off" | "low" | "medium" | "high";
 /**
  * Resolve the effort level from `env`. Reads `AI_EFFORT`; an absent, empty,
  * or unrecognised value resolves to `"low"` (the shipping default). The
- * numeric-budget escape hatch (a bare integer for the budget-API models) is
- * a ticket-18 concern — this resolver normalises the four canonical levels.
+ * numeric-budget escape hatch is exposed through `resolveEffortChoice` — this
+ * resolver normalises only the four canonical level strings.
  *
  * The choice is **case-insensitive** so an operator typing `HIGH` or `Off`
  * does not silently fall back to the default.
@@ -468,6 +473,67 @@ export function resolveEffort(
     return lowered;
   }
   return "low";
+}
+
+/**
+ * `AI_EFFORT` can also carry a **bare integer** — the operator's escape hatch
+ * for tuning the budget-API models without picking a canonical level. A
+ * positive integer is used directly as `budget_tokens` (floor 1024, so a
+ * value of `500` clamps to 1024); the literal `0` means `off`. A positive
+ * numeric value only makes sense for the budget-API models — pairing one
+ * with an adaptive (Opus 4.7) model throws at `createAiSearchClient`.
+ *
+ * `EffortChoice` is the resolved knob the client carries — either a canonical
+ * `Effort` level or a `{ kind: "budget", tokens: N }` numeric override.
+ */
+export type EffortChoice =
+  | { kind: "level"; effort: Effort }
+  | { kind: "budget"; tokens: number };
+
+/** Minimum `budget_tokens` the Anthropic budget-thinking API accepts. */
+export const EFFORT_BUDGET_FLOOR = 1024;
+
+/**
+ * Resolve the effort choice from `env`. Recognises the four canonical levels
+ * (case-insensitive, falling back to `low`) and a bare integer:
+ *
+ *  - A positive integer becomes `{ kind: "budget", tokens: max(n, 1024) }`.
+ *  - `0` (or `-0`) becomes the `off` level — extended thinking is disabled.
+ *  - A negative integer or a malformed value falls back to the level path.
+ *
+ * The numeric path is what makes `AI_EFFORT=2048` mean "give the budget-API
+ * model 2048 thinking tokens" without forcing the operator into the
+ * three-step ladder.
+ */
+export function resolveEffortChoice(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): EffortChoice {
+  const raw = env.AI_EFFORT;
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (/^-?\d+$/.test(trimmed)) {
+      const n = Number(trimmed);
+      if (Number.isInteger(n)) {
+        if (n <= 0) return { kind: "level", effort: "off" };
+        return { kind: "budget", tokens: Math.max(n, EFFORT_BUDGET_FLOOR) };
+      }
+    }
+  }
+  return { kind: "level", effort: resolveEffort(env) };
+}
+
+/**
+ * Resolve `AI_MODEL` from `env`. Reads the env var; an absent, empty, or
+ * whitespace-only value falls back to `MODEL_DEFAULT` (`claude-opus-4-7`).
+ * Trims whitespace so a stray newline in `.env` is forgiven.
+ */
+export function resolveModel(
+  env: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
+): string {
+  const raw = env.AI_MODEL;
+  if (typeof raw !== "string") return MODEL_DEFAULT;
+  const trimmed = raw.trim();
+  return trimmed === "" ? MODEL_DEFAULT : trimmed;
 }
 
 /**
@@ -547,6 +613,40 @@ export function planThinking(model: string, effort: Effort): ThinkingPlan {
     kind: "budget",
     thinking: { type: "enabled", budget_tokens: EFFORT_BUDGET_TOKENS[effort] },
   };
+}
+
+/**
+ * Translate an `EffortChoice` (the level **or** the numeric-budget escape
+ * hatch) into the thinking block the model call needs. A numeric `{ kind:
+ * "budget", tokens }` is only meaningful for the budget-API models — pairing
+ * one with an adaptive model is a misconfiguration the caller (`createAiSearchClient`)
+ * surfaces as a loud throw rather than coercing here.
+ *
+ * The level path delegates to `planThinking`; the numeric path emits a
+ * `{ kind: "budget", thinking: { type: "enabled", budget_tokens } }` block
+ * directly.
+ */
+export function planThinkingChoice(
+  model: string,
+  choice: EffortChoice,
+): ThinkingPlan {
+  if (choice.kind === "level") return planThinking(model, choice.effort);
+  return {
+    kind: "budget",
+    thinking: { type: "enabled", budget_tokens: choice.tokens },
+  };
+}
+
+/**
+ * The thinking descriptor used in the structured `ai_search` log line — a
+ * compact string the operator can scan for at a glance. `off` for the off
+ * level, `effort:<level>` for the canonical levels, `budget:<N>` for the
+ * numeric override.
+ */
+export function thinkingDescriptor(choice: EffortChoice): string {
+  if (choice.kind === "budget") return `budget:${choice.tokens}`;
+  if (choice.effort === "off") return "off";
+  return `effort:${choice.effort}`;
 }
 
 /**
@@ -686,15 +786,45 @@ export function aiSearchEnabled(
 }
 
 /** Options accepted by `createAiSearchClient`. The defaults are the shipping
- * defaults (`MODEL_DEFAULT`, `resolveTailMode`, `resolveEffort`); a test or
- * the eval harness can override any of them. `fetchImpl` lets the test suite
- * inject a stub `fetch`; `timeoutMs` sizes the per-request timer. */
+ * defaults (`MODEL_DEFAULT`, `resolveTailMode`, `resolveEffortChoice`); a test
+ * or the eval harness can override any of them. `effort` is the legacy
+ * canonical-level knob; `effortChoice` carries the numeric escape hatch too
+ * and takes precedence when both are set. `fetchImpl` lets the test suite
+ * inject a stub `fetch`; `timeoutMs` sizes the per-request timer; `logger`
+ * lets a test capture the structured `ai_search` log line without touching
+ * `console`. */
 export type AiSearchClientOptions = {
   model?: string;
   tailMode?: TailMode;
   effort?: Effort;
+  effortChoice?: EffortChoice;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  logger?: (line: AiSearchLogLine) => void;
+};
+
+/**
+ * One structured log line per model call, on both the ok and the fallback
+ * path. The `query` field is intentionally the **length** of the query, never
+ * its text — Household intent never reaches the logs. `tokens` is populated
+ * only when the call returned a response; on a timeout or network failure
+ * there is no response to read, so the field is omitted.
+ */
+export type AiSearchLogLine = {
+  event: "ai_search";
+  queryLength: number;
+  model: string;
+  tailMode: TailMode;
+  thinking: string;
+  latencyMs: number;
+  outcome: "ok" | "fallback";
+  resultCount: number;
+  tokens?: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheCreation: number;
+  };
 };
 
 /**
@@ -724,33 +854,89 @@ export function createAiSearchClient(
   apiKey: string,
   options: AiSearchClientOptions = {},
 ): AiSearchClient {
-  const model = options.model ?? MODEL_DEFAULT;
+  const model = options.model ?? resolveModel();
   const tailMode = options.tailMode ?? resolveTailMode();
-  const effort = options.effort ?? resolveEffort();
+  // `effortChoice` is the richer knob (level **or** numeric budget); fall
+  // back to the legacy `effort` (level only), then to env-resolved choice.
+  const effortChoice: EffortChoice =
+    options.effortChoice ??
+    (options.effort !== undefined
+      ? { kind: "level", effort: options.effort }
+      : resolveEffortChoice());
+
+  // Misconfiguration: a numeric `budget_tokens` knob has no meaning for the
+  // adaptive-thinking API — Opus 4.7 picks its own thinking budget. Pairing
+  // one with an Opus model is the caller asking for a thing that does not
+  // exist, so we throw at construction rather than coercing silently. The
+  // throw mentions the offending values so an operator can see what to fix.
+  if (effortChoice.kind === "budget" && isAdaptiveModel(model)) {
+    throw new Error(
+      `AI search misconfiguration: a numeric AI_EFFORT (${effortChoice.tokens}) cannot be paired with an adaptive-thinking model (${model}). Use AI_EFFORT=off|low|medium|high with an Opus 4.7 model, or pick a budget-API model (Sonnet, Haiku).`,
+    );
+  }
+
   const fetchImpl = options.fetchImpl ?? fetch;
   const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
-  const plan = planThinking(model, effort);
+  const logger = options.logger ?? defaultLogger;
+  const plan = planThinkingChoice(model, effortChoice);
   const adaptive = plan.kind === "adaptive";
+  const thinking = thinkingDescriptor(effortChoice);
 
   return {
     async search(input) {
+      const queryLength = input.query.length;
+      const startedAt = nowMs();
       const { snapshot, idByIndex } = buildSnapshot(input);
       const systemPrompt = buildSystemPrompt({ tailMode });
 
-      // Request body — shared between the budget and adaptive paths; the
-      // `thinking` and `output_config` blocks come from `planThinking` and
-      // diverge by API. The adaptive path also carries `stream: true` and a
-      // higher `max_tokens` so the long thinking burst has room.
+      // The snapshot body — everything except the query — is stable between
+      // searches minutes apart, so the system prompt, tools, and snapshot
+      // body all live behind a `cache_control: { type: "ephemeral" }` marker
+      // that the Anthropic API uses as a cache key. The query trails it as a
+      // second user-content block with no `cache_control`, so it remains
+      // outside the cached prefix. A burst of searches over an unchanged
+      // Catalog/Log reads the prefix from cache; only the new query is
+      // billed at full input rate.
+      //
+      // The snapshot body is sent in a separate JSON block from the query so
+      // the cache boundary lands at a stable byte position — the model still
+      // reads them as two parts of the same Household-supplied input.
+      const snapshotBody = JSON.stringify({
+        today: snapshot.today,
+        todayWeekday: snapshot.todayWeekday,
+        options: snapshot.options,
+        log: snapshot.log,
+        rejections: snapshot.rejections,
+      });
+      const queryBody = JSON.stringify({ query: snapshot.query });
+
       const body: Record<string, unknown> = {
         model,
         max_tokens: adaptive ? MAX_TOKENS_ADAPTIVE : MAX_TOKENS_BUDGET,
+        // System prompt stays a string — Anthropic's prompt-cache marker on a
+        // later content block extends the cached prefix backwards through the
+        // system prompt and the tool list, so we do not need to fragment
+        // those blocks just to tag them.
         system: systemPrompt,
         tools: [RANK_OPTIONS_TOOL],
         tool_choice: { type: "tool", name: RANK_OPTIONS_TOOL.name },
         messages: [
           {
             role: "user",
-            content: JSON.stringify(snapshot),
+            content: [
+              // The snapshot body — the last cached block. The `cache_control`
+              // marker on this block closes the cached prefix; everything
+              // before it (system prompt + tools + this block) is cached,
+              // everything after (the query) is billed uncached.
+              {
+                type: "text",
+                text: snapshotBody,
+                cache_control: { type: "ephemeral" },
+              },
+              // The query — outside the cache. The model still reads both
+              // blocks together; only the cache boundary differs.
+              { type: "text", text: queryBody },
+            ],
           },
         ],
       };
@@ -765,17 +951,25 @@ export function createAiSearchClient(
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       let finalMessage: unknown;
+      let usage: AiSearchLogLine["tokens"] | undefined;
+      let outcome: "ok" | "fallback" = "fallback";
+      let resultCount = 0;
       try {
-        const response = await fetchImpl(ANTHROPIC_URL, {
-          method: "POST",
-          headers: {
-            "x-api-key": apiKey,
-            "anthropic-version": ANTHROPIC_VERSION,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        });
+        let response: Response;
+        try {
+          response = await fetchImpl(ANTHROPIC_URL, {
+            method: "POST",
+            headers: {
+              "x-api-key": apiKey,
+              "anthropic-version": ANTHROPIC_VERSION,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+          });
+        } catch {
+          return AI_SEARCH_UNAVAILABLE;
+        }
         if (!response.ok) return AI_SEARCH_UNAVAILABLE;
         try {
           finalMessage = adaptive
@@ -785,18 +979,77 @@ export function createAiSearchClient(
           return AI_SEARCH_UNAVAILABLE;
         }
         if (finalMessage === undefined) return AI_SEARCH_UNAVAILABLE;
-      } catch {
-        return AI_SEARCH_UNAVAILABLE;
+
+        usage = extractUsage(finalMessage);
+        const toolInput = findToolUseInput(finalMessage, RANK_OPTIONS_TOOL.name);
+        if (toolInput === undefined) return AI_SEARCH_UNAVAILABLE;
+        const results = parseAndValidate(toolInput, idByIndex);
+        if (results === null) return AI_SEARCH_UNAVAILABLE;
+        outcome = "ok";
+        resultCount = results.length;
+        return { ok: true, results };
       } finally {
         clearTimeout(timer);
+        const line: AiSearchLogLine = {
+          event: "ai_search",
+          queryLength,
+          model,
+          tailMode,
+          thinking,
+          latencyMs: Math.max(0, Math.round(nowMs() - startedAt)),
+          outcome,
+          resultCount,
+        };
+        if (usage) line.tokens = usage;
+        try {
+          logger(line);
+        } catch {
+          // Logging must never bubble out of the client.
+        }
       }
-
-      const toolInput = findToolUseInput(finalMessage, RANK_OPTIONS_TOOL.name);
-      if (toolInput === undefined) return AI_SEARCH_UNAVAILABLE;
-      const results = parseAndValidate(toolInput, idByIndex);
-      if (results === null) return AI_SEARCH_UNAVAILABLE;
-      return { ok: true, results };
     },
+  };
+}
+
+/**
+ * Default `logger` for `createAiSearchClient` — one JSON line per call to
+ * stdout, the shape every structured-logging stack expects. Test code passes
+ * its own `logger` to capture the line in-process without touching the real
+ * console.
+ */
+function defaultLogger(line: AiSearchLogLine): void {
+  // eslint-disable-next-line no-console
+  console.log(JSON.stringify(line));
+}
+
+/** Monotonic-ish millisecond clock. `performance.now` is preferred when the
+ * runtime exposes it (every modern Node and every browser); falls back to
+ * `Date.now`. */
+function nowMs(): number {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+}
+
+/**
+ * Extract the usage block from a final Messages-API response — the shape
+ * `{ usage: { input_tokens, output_tokens, cache_read_input_tokens,
+ * cache_creation_input_tokens } }`. Missing pieces default to `0` so the log
+ * line always carries the four token counts. Returns `undefined` when the
+ * body is unparseable as a usage carrier.
+ */
+function extractUsage(body: unknown): AiSearchLogLine["tokens"] | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const usage = (body as { usage?: unknown }).usage;
+  if (!usage || typeof usage !== "object") return undefined;
+  const u = usage as Record<string, unknown>;
+  const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  return {
+    input: num(u.input_tokens),
+    output: num(u.output_tokens),
+    cacheRead: num(u.cache_read_input_tokens),
+    cacheCreation: num(u.cache_creation_input_tokens),
   };
 }
 

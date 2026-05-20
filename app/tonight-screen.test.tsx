@@ -555,6 +555,36 @@ describe("AI search (rendered by TonightScreen)", () => {
     expect(search.className).toMatch(/focus-visible:outline/);
   });
 
+  it("hides the search box entirely when searchEnabled is false (ticket 18 — the ANTHROPIC_API_KEY gate)", () => {
+    render(
+      <TonightScreen
+        tonightsDinner={[]}
+        pickerRows={pickerRows}
+        searchEnabled={false}
+      />,
+    );
+    // No searchbox, no Search button, no AI-search form is in the DOM.
+    expect(screen.queryByRole("searchbox", { name: "AI search query" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
+    expect(screen.queryByRole("search")).toBeNull();
+    // The deterministic picker still renders underneath — Tonight reads as v1.
+    const items = screen.getAllByRole("listitem");
+    expect(items.length).toBe(2);
+    expect(items[0]?.textContent).toContain("Alice's Pizza");
+    expect(items[1]?.textContent).toContain("Banh Mi");
+  });
+
+  it("renders the search box when searchEnabled is true", () => {
+    render(
+      <TonightScreen
+        tonightsDinner={[]}
+        pickerRows={pickerRows}
+        searchEnabled={true}
+      />,
+    );
+    expect(screen.getByRole("searchbox", { name: "AI search query" })).toBeDefined();
+  });
+
   it("an empty AI result renders the empty-state message with a Clear control returning to the deterministic list", async () => {
     aiSearchAction.mockReset();
     aiSearchAction.mockResolvedValueOnce({ ok: true, results: [] });
