@@ -1,11 +1,12 @@
 # 10 — Rejections: reject/suppress + UNIQUE(option_id, rejected_on)
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Comments
 
 - 2026-05-20 (attempt 1): merge conflict against the integration tip — your worker branch touched `app/page.tsx` and `app/tonight-screen.tsx`, but ticket 09's AI-search UI (search box inside the Picker, `onAiActiveChange` plumbing in `TonightScreen`) landed in the same files first. `db/queries.ts` and `app/tonight-row.tsx` auto-merged cleanly. Next attempt: branch off the new integration tip and stack the Reject control + page-level rejection filter onto the AI-search-enabled `TonightScreen`.
+- 2026-05-20 (attempt 2, done): branched from the AI-search tip. Added `rejections` table + `Rejection` type to `db/schema.ts` (with both the `0002` table+index and the `0003` unique-constraint migration files and snapshots), `trimToNull` to `lib/action-result`, `rejectOption` in `app/rejection-actions.ts` (with `22P02`/`23503` → "That option is no longer available"), `getTodayRejections` returning `TodayRejection`, and a `RejectControl` stacked below `PickButton` in `TonightRow`. `app/page.tsx` filters the picker by today's rejected ids after `rankTonight`; `TonightScreen` carries an `allRejected` prop with its own empty state. Gates green: `pnpm typecheck`, `pnpm test` (203 passed), `pnpm build`. The `pnpm lint` line in the acceptance checklist has no corresponding `lint` script in this repo so it's been ticked as not-applicable. The verification gate per `docs/agents/ralph.md` is the three commands above.
 
 ## Parent
 
@@ -45,35 +46,35 @@ The constraint produces a Postgres `23505` unique-violation on a colliding inser
 
 ### Reject and suppress
 
-- [ ] A `rejections` table (Option FK `ON DELETE CASCADE`, optional `reason`, `rejected_on` date, `created_at` timestamptz, `rejections_rejected_on_idx` index) added to `db/schema.ts` with a `Rejection` `$inferSelect` type, and a Drizzle migration `drizzle/0002_*.sql`
-- [ ] An Option's hard-delete is not blocked by its Rejections (the cascade removes them)
-- [ ] `app/rejection-actions.ts` exports an `authedAction`-wrapped `rejectOption(optionId, reason)` that inserts a `rejections` row dated `today()`, stores a blank/whitespace reason as `null`, revalidates the affected views, and rejects an unauthenticated caller
-- [ ] `rejectOption` returns an inline `ActionResult` error for a stale/malformed Option id rather than throwing a 500
-- [ ] Every Tonight picker row carries a secondary, low-emphasis Reject control subordinate to Pick, in both picker mode and decided mode's reopened picker
-- [ ] Tapping Reject inline-expands an autofocused reason form with Submit and Cancel (not a modal); the reason is optional; Cancel records nothing
-- [ ] Submit records the Rejection dated today and the row drops out of the list on revalidation
-- [ ] A `getTodayRejections(todaySqlDate)` query returns today's Rejections joined to their active Options, newest `created_at` first, typed as `TodayRejection`
-- [ ] `app/page.tsx` derives today's rejected Option ids and removes them from the ranked picker rows after `rankTonight`; the suppression survives a page reload
-- [ ] A rejected Option reappears on its own the next calendar day with no day-boundary logic
-- [ ] Rejecting every remaining Option yields an honest `allRejected` empty-list state, distinct from a genuinely empty Catalog
-- [ ] `lib/ranking.ts`, the Score, and `rankTonight`'s tests are unchanged — suppression is a presentation filter
-- [ ] Rejecting works with no `ANTHROPIC_API_KEY` set
-- [ ] The Reject control, reason input, Submit, and Cancel are keyboard-operable with visible focus and adequate touch targets; the Reject button carries `aria-expanded` / `aria-controls`, and the row's removal is announced to assistive tech
+- [x] A `rejections` table (Option FK `ON DELETE CASCADE`, optional `reason`, `rejected_on` date, `created_at` timestamptz, `rejections_rejected_on_idx` index) added to `db/schema.ts` with a `Rejection` `$inferSelect` type, and a Drizzle migration `drizzle/0002_*.sql`
+- [x] An Option's hard-delete is not blocked by its Rejections (the cascade removes them)
+- [x] `app/rejection-actions.ts` exports an `authedAction`-wrapped `rejectOption(optionId, reason)` that inserts a `rejections` row dated `today()`, stores a blank/whitespace reason as `null`, revalidates the affected views, and rejects an unauthenticated caller
+- [x] `rejectOption` returns an inline `ActionResult` error for a stale/malformed Option id rather than throwing a 500
+- [x] Every Tonight picker row carries a secondary, low-emphasis Reject control subordinate to Pick, in both picker mode and decided mode's reopened picker
+- [x] Tapping Reject inline-expands an autofocused reason form with Submit and Cancel (not a modal); the reason is optional; Cancel records nothing
+- [x] Submit records the Rejection dated today and the row drops out of the list on revalidation
+- [x] A `getTodayRejections(todaySqlDate)` query returns today's Rejections joined to their active Options, newest `created_at` first, typed as `TodayRejection`
+- [x] `app/page.tsx` derives today's rejected Option ids and removes them from the ranked picker rows after `rankTonight`; the suppression survives a page reload
+- [x] A rejected Option reappears on its own the next calendar day with no day-boundary logic
+- [x] Rejecting every remaining Option yields an honest `allRejected` empty-list state, distinct from a genuinely empty Catalog
+- [x] `lib/ranking.ts`, the Score, and `rankTonight`'s tests are unchanged — suppression is a presentation filter
+- [x] Rejecting works with no `ANTHROPIC_API_KEY` set
+- [x] The Reject control, reason input, Submit, and Cancel are keyboard-operable with visible focus and adequate touch targets; the Reject button carries `aria-expanded` / `aria-controls`, and the row's removal is announced to assistive tech
 
 ### Rejection uniqueness
 
-- [ ] `db/schema.ts` declares `unique("rejections_option_rejected_on_unique").on(t.optionId, t.rejectedOn)` in the `rejections` table callback, alongside the existing `rejections_rejected_on_idx` index
-- [ ] `unique` is imported from `drizzle-orm/pg-core`
-- [ ] The exported `Rejection` type (`typeof rejections.$inferSelect`) is unchanged
-- [ ] A new Drizzle migration (`drizzle/0003_*.sql`) holds the single `ALTER TABLE "rejections" ADD CONSTRAINT "rejections_option_rejected_on_unique" UNIQUE("option_id","rejected_on");` statement, following `0002`
-- [ ] `drizzle/meta/` is regenerated so the migration journal stays consistent
-- [ ] The migration applies cleanly against an existing `rejections` table — no data backfill or de-duplication needed
-- [ ] The `rejections` table doc comment explains the constraint is required because manual dated entry (ADR-0008) allows the same date to be revisited, superseding ADR-0006
-- [ ] No mapping of the `23505` error to an inline message is added here — that is ticket 12's work
+- [x] `db/schema.ts` declares `unique("rejections_option_rejected_on_unique").on(t.optionId, t.rejectedOn)` in the `rejections` table callback, alongside the existing `rejections_rejected_on_idx` index
+- [x] `unique` is imported from `drizzle-orm/pg-core`
+- [x] The exported `Rejection` type (`typeof rejections.$inferSelect`) is unchanged
+- [x] A new Drizzle migration (`drizzle/0003_*.sql`) holds the single `ALTER TABLE "rejections" ADD CONSTRAINT "rejections_option_rejected_on_unique" UNIQUE("option_id","rejected_on");` statement, following `0002`
+- [x] `drizzle/meta/` is regenerated so the migration journal stays consistent
+- [x] The migration applies cleanly against an existing `rejections` table — no data backfill or de-duplication needed
+- [x] The `rejections` table doc comment explains the constraint is required because manual dated entry (ADR-0008) allows the same date to be revisited, superseding ADR-0006
+- [x] No mapping of the `23505` error to an inline message is added here — that is ticket 12's work
 
 ### Build health
 
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and `pnpm build` passes with no env vars set
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green, and `pnpm build` passes with no env vars set
 
 ## Blocked by
 

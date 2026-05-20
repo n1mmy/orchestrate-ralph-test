@@ -1,0 +1,1 @@
+ALTER TABLE "rejections" ADD CONSTRAINT "rejections_option_rejected_on_unique" UNIQUE("option_id","rejected_on");

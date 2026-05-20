@@ -1,8 +1,7 @@
 /**
- * Drizzle schema for Pick Me a Dinner (v1 — four tables).
+ * Drizzle schema for Pick Me a Dinner.
  *
- * The shipped app also carries a `rejections` table; that lands in a later
- * phase. See `.scratch/pick-me-a-dinner/CONTEXT.md` for the domain language.
+ * See `.scratch/pick-me-a-dinner/CONTEXT.md` for the domain language.
  */
 import { sql } from "drizzle-orm";
 import {
@@ -105,3 +104,45 @@ export const dinnerLog = pgTable(
     ),
   }),
 );
+
+/**
+ * `rejections` is the dated history of nights the Household passed an Option
+ * over (see CONTEXT.md). The FK is `ON DELETE CASCADE`: when an Option is
+ * hard-deleted (only allowed when it has zero Log entries — see ADR-0001),
+ * any Rejections attached to it are swept along. That deletes a Rejection
+ * row from the dated history; suppression on the same day still works
+ * because suppression is driven by the live `rejected_on` filter.
+ *
+ * The `UNIQUE(option_id, rejected_on)` constraint is added because per
+ * ADR-0008 Rejections are now manually enterable for any date — past,
+ * today, or future — so a deliberate "reject Aji Ichi on 2026-05-31"
+ * collision is a real typed mistake to surface inline (mirroring
+ * `dinner_log_option_eaten_on_unique`). This supersedes ADR-0006's
+ * earlier reasoning that no such constraint was needed; that reasoning
+ * ("a rejected Option leaves the picker, so it cannot be re-rejected
+ * the same day") held only while Rejections were live-only.
+ */
+export const rejections = pgTable(
+  "rejections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    optionId: uuid("option_id")
+      .notNull()
+      .references(() => options.id, { onDelete: "cascade" }),
+    reason: text("reason"),
+    rejectedOn: date("rejected_on").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    rejectedOnIdx: index("rejections_rejected_on_idx").on(table.rejectedOn),
+    optionRejectedOnUnique: unique("rejections_option_rejected_on_unique").on(
+      table.optionId,
+      table.rejectedOn,
+    ),
+  }),
+);
+
+/** A single row from the `rejections` table. */
+export type Rejection = typeof rejections.$inferSelect;
