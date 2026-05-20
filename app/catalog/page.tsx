@@ -4,11 +4,18 @@ export const dynamic = "force-dynamic";
 
 import { CatalogScreen } from "./catalog-screen";
 import { getActiveCatalog, getAllTagNames } from "@/db/queries";
+import { placesEnabled } from "@/lib/places";
 
 export default async function CatalogPage() {
   const [catalog, tagSuggestions] = await Promise.all([
     getActiveCatalog(),
     getAllTagNames(),
   ]);
-  return <CatalogScreen catalog={catalog} tagSuggestions={tagSuggestions} />;
+  return (
+    <CatalogScreen
+      catalog={catalog}
+      tagSuggestions={tagSuggestions}
+      placesEnabled={placesEnabled()}
+    />
+  );
 }

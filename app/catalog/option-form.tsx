@@ -8,6 +8,8 @@ import {
   createOption,
   updateOption,
 } from "./actions";
+import type { Autofill } from "./places-box";
+import { PlacesSearchBox } from "./places-search-box";
 import { TagInput } from "./tag-input";
 import { TextArea, TextField } from "./text-field";
 
@@ -30,6 +32,12 @@ type Props = {
   initial?: OptionFormInitial;
   onDone: () => void;
   tagSuggestions: string[];
+  /**
+   * Whether the server-side `GOOGLE_PLACES_API_KEY` is set. When false the
+   * `PlacesSearchBox` is not rendered at all so the form degrades to plain
+   * manual entry. Threaded down from the server-rendered page.
+   */
+  placesEnabled: boolean;
 };
 
 function parseNumber(raw: string): number | null {
@@ -49,7 +57,13 @@ function parseNumber(raw: string): number | null {
  * form stays open. On `{ ok: true }` the form calls `onDone` so the parent
  * can collapse it back; `revalidatePath` then refreshes the list in place.
  */
-export function OptionForm({ kind, initial, onDone, tagSuggestions }: Props) {
+export function OptionForm({
+  kind,
+  initial,
+  onDone,
+  tagSuggestions,
+  placesEnabled,
+}: Props) {
   const idBase = useId();
   const [name, setName] = useState(initial?.name ?? "");
   const [url, setUrl] = useState(initial?.url ?? "");
@@ -68,10 +82,36 @@ export function OptionForm({ kind, initial, onDone, tagSuggestions }: Props) {
   );
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [error, setError] = useState<string | null>(null);
+  const [urlKept, setUrlKept] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const editing = Boolean(initial?.id);
   const isRestaurant = kind === "restaurant";
+
+  /**
+   * Apply an autofill payload from the Places search box.
+   *
+   * Sets every form field from the Place's details — every field stays
+   * editable afterwards. **One nuance:** an already-filled `url` is kept,
+   * not overwritten. A hand-picked menu link beats the Place's generic
+   * website, so a match flags a `urlKept` notice instead of clobbering
+   * what the user typed.
+   */
+  const applyAutofill = (filled: Autofill) => {
+    setName(filled.name);
+    setAddress(filled.address);
+    setPhone(filled.phone);
+    setMapsUrl(filled.mapsUrl);
+    setLat(filled.lat);
+    setLng(filled.lng);
+    setGooglePlaceId(filled.googlePlaceId);
+    if (url.trim() === "") {
+      setUrl(filled.url);
+      setUrlKept(false);
+    } else {
+      setUrlKept(true);
+    }
+  };
 
   const submit = () => {
     setError(null);
@@ -119,6 +159,9 @@ export function OptionForm({ kind, initial, onDone, tagSuggestions }: Props) {
       />
       {isRestaurant ? (
         <>
+          {placesEnabled ? (
+            <PlacesSearchBox onAutofill={applyAutofill} />
+          ) : null}
           <TextField
             id={`${idBase}-address`}
             label="Address"
@@ -137,7 +180,15 @@ export function OptionForm({ kind, initial, onDone, tagSuggestions }: Props) {
             label="Website or menu link"
             inputMode="url"
             value={url}
-            onChange={(event) => setUrl(event.target.value)}
+            onChange={(event) => {
+              setUrl(event.target.value);
+              setUrlKept(false);
+            }}
+            hint={
+              urlKept
+                ? "Kept your menu link — Google's website was not overwritten"
+                : undefined
+            }
           />
           <TextField
             id={`${idBase}-maps-url`}
