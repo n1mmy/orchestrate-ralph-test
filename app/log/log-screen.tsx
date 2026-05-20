@@ -1,8 +1,8 @@
 import type { LogEntry, SelectableOption } from "@/db/queries";
+import { formatDinnerDate, groupByDay } from "@/lib/dinner-grouping";
 
 import { AddDinnerForm } from "./add-dinner-form";
 import { LogEntryRow } from "./log-entry-row";
-import { dayHeader, groupLog } from "./log-day-grouping";
 
 type Props = {
   entries: LogEntry[];
@@ -17,9 +17,15 @@ type Props = {
  * entries soonest-first, then reverse-chronological history grouped by
  * date. A date carrying more than one entry renders as one Dinner under
  * one header.
+ *
+ * Grouping and date-label resolution come from the shared
+ * `lib/dinner-grouping` module so the Log screen and the Option detail
+ * page never disagree on what date a record belongs to or what its
+ * header reads. The Log screen passes an empty Rejections list — the
+ * Log itself shows only realised dinners, not Rejections.
  */
 export function LogScreen({ entries, options, today, upcomingCap = 5 }: Props) {
-  const { upcoming, past } = groupLog(entries, today);
+  const { upcoming, history } = groupByDay(entries, [], today);
   const cappedUpcoming = upcoming.slice(0, upcomingCap);
   const empty = entries.length === 0;
 
@@ -40,7 +46,7 @@ export function LogScreen({ entries, options, today, upcomingCap = 5 }: Props) {
           {cappedUpcoming.map((group) => (
             <div key={group.date}>
               <h3 className="pb-2xs pt-sm text-meta text-muted">
-                {dayHeader(group.date, today)}
+                {formatDinnerDate(group.date, today)}
               </h3>
               <ol className="flex flex-col">
                 {group.entries.map((entry) => (
@@ -55,13 +61,13 @@ export function LogScreen({ entries, options, today, upcomingCap = 5 }: Props) {
           ))}
         </section>
       ) : null}
-      {past.length > 0 ? (
+      {history.length > 0 ? (
         <section className="pt-lg">
           <h2 className="pb-xs font-display text-name text-ink">History</h2>
-          {past.map((group) => (
+          {history.map((group) => (
             <div key={group.date}>
               <h3 className="pb-2xs pt-sm text-meta text-muted">
-                {dayHeader(group.date, today)}
+                {formatDinnerDate(group.date, today)}
               </h3>
               <ol className="flex flex-col">
                 {group.entries.map((entry) => (

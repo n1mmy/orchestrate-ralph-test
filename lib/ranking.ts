@@ -167,3 +167,81 @@ export function rankTonight(
   });
   return rows;
 }
+
+/**
+ * Single-Option ranking — the input the Option detail page hands to its
+ * "Recency" block. Reuses the engine's recency internals (`lastEaten`,
+ * `lastTagUse`, `daysSince`, `optionScore`) so that for an active Option
+ * the result matches that Option's row in `rankTonight` over the same
+ * inputs — the detail page and Tonight never disagree.
+ *
+ * The caller supplies `activeOptions` and `activeLog` so the engine can
+ * compute per-Tag recency against the active Catalog (same scope as
+ * `rankTonight`). `targetLog` is the Option's own Log entries — these
+ * may include entries for an Archived target (`activeLog` filters
+ * Archived Options out, but the target's own history is still relevant
+ * to its per-Option recency chip).
+ *
+ * `score` is `null` for an Archived Option — the detail page exercises
+ * that path in a later ticket; for an active Option it equals the
+ * Option's `rankTonight` Score over the same inputs.
+ */
+export type RankOptionInput = {
+  target: RankOption;
+  activeOptions: readonly RankOption[];
+  activeLog: readonly RankLogEntry[];
+  /** The target Option's own Log entries (Active or Archived). */
+  targetLog: readonly RankLogEntry[];
+  /** Integer epoch-day for today. */
+  today: number;
+  /**
+   * When true, the target is treated as Archived: `score` returns `null`
+   * and the Recency chip still resolves from `targetLog`. Defaults to
+   * `false`. The detail page wires this in a later ticket.
+   */
+  archived?: boolean;
+};
+
+export type OptionRanking = {
+  /** `null` for an Archived Option. */
+  score: number | null;
+  tags: TagRecency[];
+  /** Per-Option recency in integer days, capped at `CAP`. */
+  recencyDays: number;
+  /** True when the target Option has never been eaten. */
+  neverEaten: boolean;
+};
+
+export function rankOption(input: RankOptionInput): OptionRanking {
+  const { target, activeOptions, activeLog, targetLog, today, archived } =
+    input;
+
+  // The target's own per-Option recency reads from `targetLog` so an
+  // Archived target still resolves a meaningful chip.
+  const last = lastEaten(targetLog, target.id, today);
+  const antiRepeat = daysSince(last, today);
+  const neverEaten = last === null;
+
+  // Per-Tag recency reads from the active Catalog + active Log — same
+  // scope as `rankTonight`, so the chip values agree row-for-row.
+  const tags: TagRecency[] = target.tags.map((tagName) => {
+    const tagLast = lastTagUse(activeLog, activeOptions, tagName, today);
+    const days = daysSince(tagLast, today);
+    return {
+      name: tagName,
+      days,
+      neverEaten: tagLast === null,
+      overdue: days >= OVERDUE_THRESHOLD,
+    };
+  });
+
+  const tagDays = tags.map((t) => t.days);
+  const score = archived ? null : optionScore(antiRepeat, tagDays);
+
+  return {
+    score,
+    tags,
+    recencyDays: antiRepeat,
+    neverEaten,
+  };
+}
