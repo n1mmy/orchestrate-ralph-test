@@ -79,6 +79,7 @@ export default async function HomePage() {
       tonightsDinner={tonightsDinner}
       searchEnabled={aiSearchEnabled()}
       allRejected={allRejected}
+      rejectedTonight={todayRejections}
     />
   );
 }
