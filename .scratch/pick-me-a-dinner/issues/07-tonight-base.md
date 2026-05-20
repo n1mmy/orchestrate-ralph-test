@@ -1,6 +1,6 @@
 # 07 — Tonight: ranked list, pick=log, Log screen, tag filters
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -172,21 +172,21 @@ but the underline/strikethrough affordances are the load-bearing signal.
 
 ### Ranked list on Tonight
 
-- [ ] Tonight renders the active Catalog as a flat uniform `<ol>` ranked
+- [x] Tonight renders the active Catalog as a flat uniform `<ol>` ranked
       descending by Score, each row with the rank number, the 3px meal-kind
       left bar (`kindBarClass`), the Option name as plain text, the Recency
       chip, and the Tag chips
-- [ ] `lib/ranking.ts` and `lib/local-day.ts` are pure modules with no DB or
+- [x] `lib/ranking.ts` and `lib/local-day.ts` are pure modules with no DB or
       React dependency; `TonightRow` carries `recencyDays` + `neverEaten` +
       `tags: TagRecency[]` and **no explanation string**
-- [ ] The Recency chip shows `Nd` / `60d+` / `new` on a `recencyChipBgStrong`
+- [x] The Recency chip shows `Nd` / `60d+` / `new` on a `recencyChipBgStrong`
       heatmap fill; Tag chips show `tag Nd` on a fainter `recencyChipBg` fill,
       each tinted by its own recency via `lib/recency-color.ts`
-- [ ] Cold start (zero non-future Log entries) falls back to alphabetical
+- [x] Cold start (zero non-future Log entries) falls back to alphabetical
       order; an empty Catalog shows the "Add your first meals →" prompt
-- [ ] Overdue Tag chips render greener (the overdue heatmap end) at `days >=
+- [x] Overdue Tag chips render greener (the overdue heatmap end) at `days >=
       OVERDUE_THRESHOLD` (14)
-- [ ] `lib/ranking.test.ts` covers `daysSince` (null→CAP, normal, capped,
+- [x] `lib/ranking.test.ts` covers `daysSince` (null→CAP, normal, capped,
       future guard), `lastEaten`/`lastTagUse` (most-recent non-future, future
       excluded, null on no history), `optionScore` (tagged, tagless, cold
       start), the `overdue` threshold, and the `rankTonight` sort with its
@@ -197,39 +197,49 @@ but the underline/strikethrough affordances are the load-bearing signal.
 
 ### Pick = log + Log screen
 
-- [ ] "Pick" calls `pickTonight`, logs a `dinner_log` row for `today()` in one
+- [x] "Pick" calls `pickTonight`, logs a `dinner_log` row for `today()` in one
       tap, briefly marks "Logged ✓", and re-sorts the list
-- [ ] A double-tap on "Pick" is a no-op (`.onConflictDoNothing()` on
+- [x] A double-tap on "Pick" is a no-op (`.onConflictDoNothing()` on
       `(option_id, eaten_on)`)
-- [ ] The Log screen's "+ Add a dinner" form (`logForDate`) allows a past date
+- [x] The Log screen's "+ Add a dinner" form (`logForDate`) allows a past date
       (backfill) and a future date (Planned dinner); future entries are
       excluded from the Tonight ranking
-- [ ] The Log screen shows a capped Upcoming strip above
+- [x] The Log screen shows a capped Upcoming strip above
       reverse-chronological history grouped by date; multi-entry dates render
       as one Dinner under one header
-- [ ] Any Log entry edits inline (Option, date, note) via `updateLogEntry` or
+- [x] Any Log entry edits inline (Option, date, note) via `updateLogEntry` or
       deletes via `deleteLogEntry`; a `logForDate`/`updateLogEntry` edit
       violating `unique(option_id, eaten_on)` (`23505`) shows the inline
       "Already logged for that date" error with input preserved
-- [ ] Delete uses the §17 inline-confirm pattern; Log §17 states (loading,
+- [x] Delete uses the §17 inline-confirm pattern; Log §17 states (loading,
       empty, error, quiet "Saved") are covered
-- [ ] `app/log/actions.db.test.ts` covers: `pickTonight` inserts for today;
+- [x] `app/log/actions.db.test.ts` covers: `pickTonight` inserts for today;
       double-tap no-op; `logForDate` past + future; `updateLogEntry`
       Option/date/note; `deleteLogEntry`; the `unique`-conflict rejection
 
 ### Tri-state tag filters
 
-- [ ] The All/Home/Restaurant `KindSegment` (in the page header) filters the
+- [x] The All/Home/Restaurant `KindSegment` (in the page header) filters the
       Tonight list by Option kind
-- [ ] Tag chips cycle off → include → exclude → off via `cycleChipState`;
+- [x] Tag chips cycle off → include → exclude → off via `cycleChipState`;
       include shows only matching Options, exclude hides matching Options
-- [ ] `filterTonightRows` ANDs the kind segment and all tag filters together;
+- [x] `filterTonightRows` ANDs the kind segment and all tag filters together;
       the `filterHint` line states the active filter in words
-- [ ] Chip state is distinguishable in grayscale (underline / strikethrough)
+- [x] Chip state is distinguishable in grayscale (underline / strikethrough)
       and announced to screen readers via `aria-label` (`chipStateLabel`)
-- [ ] `lib/tonight-filter.test.ts` covers the off → include → exclude cycle
+- [x] `lib/tonight-filter.test.ts` covers the off → include → exclude cycle
       and that the kind segment and tag filters AND together
 
 ## Blocked by
 
 - 03 — Options catalog: CRUD
+
+## Comments
+
+- 2026-05-20: Implemented `lib/local-day.ts`, `lib/ranking.ts`,
+  `lib/ranking.config.ts`, `lib/recency-color.ts`, `lib/tonight-filter.ts`,
+  `app/kind-bar.ts`; `db/queries.ts` extended with `getTonightData`,
+  `getLog`, `getAllOptionsForSelect`; `app/log/actions.ts` with
+  `pickTonight` / `logForDate` / `updateLogEntry` / `deleteLogEntry`;
+  Tonight screen (`/`) + Log screen (`/log`) built. Gate green
+  (`pnpm typecheck`, `pnpm test`, `pnpm build`).

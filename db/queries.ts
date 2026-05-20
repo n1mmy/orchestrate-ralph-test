@@ -1,16 +1,22 @@
 /**
- * Read-side queries against the Catalog.
+ * Read-side queries.
  *
- * `getActiveCatalog` powers the `/catalog` screen: every `active = true`
- * Option, name-ordered, split into the two Catalog sections (`home` /
- * `restaurants`) and each row carries the names of its Tags. The Tag join is
- * stubbed in this slice (ticket 04 wires up Tag attachment) — until then the
- * Tag arrays are empty.
+ * `getActiveCatalog` powers `/catalog` (the Catalog screen).
+ * `getTonightData` powers `/` (the Tonight screen) — active Options with
+ * their Tags plus the non-future Log entries joined to active Options
+ * only, so the ranking engine can compute Scores in one pass.
+ * `getLog` powers `/log` — every Log entry joined to its Option (Active
+ * and Archived), newest `eaten_on` first.
+ *
+ * The Tag join is stubbed in the v1 slice — ticket 04 wires Tag attachment
+ * — so the Tag arrays are empty until that ticket lands. Tonight ranking
+ * still computes correctly: a tagless Option's variety equals its
+ * anti-repeat, so the ranking degenerates to pure per-Option recency.
  */
-import { asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, lte } from "drizzle-orm";
 
 import { db } from "./index";
-import { options, optionTags, tags } from "./schema";
+import { dinnerLog, options, optionTags, tags } from "./schema";
 
 export type CatalogRow = {
   id: string;
@@ -83,4 +89,155 @@ export async function getActiveCatalog(): Promise<ActiveCatalog> {
   }
 
   return { home, restaurants };
+}
+
+/**
+ * Tonight read model. The ranking engine only needs a slim subset of each
+ * row — `id`, `name`, `kind`, `tags`, `url`, `phone` — so the page renders
+ * straight from this shape without a second mapping step.
+ */
+export type TonightOption = {
+  id: string;
+  name: string;
+  kind: "home" | "restaurant";
+  tags: string[];
+  url: string | null;
+  phone: string | null;
+};
+
+export type TonightLogEntry = {
+  optionId: string;
+  /** SQL `date` string — the page converts to epoch-day before ranking. */
+  eatenOn: string;
+};
+
+export type TonightData = {
+  options: TonightOption[];
+  entries: TonightLogEntry[];
+};
+
+/**
+ * Active Options with their Tags, plus the Log entries with
+ * `eaten_on <= today` joined to active Options only. The ranking engine
+ * uses these two lists to compute Scores; planned (future) dinners are
+ * deliberately excluded so they don't move the ranking until their date
+ * arrives.
+ */
+export async function getTonightData(todaySql: string): Promise<TonightData> {
+  const rows = await db
+    .select({
+      id: options.id,
+      name: options.name,
+      kind: options.kind,
+      url: options.url,
+      phone: options.phone,
+    })
+    .from(options)
+    .where(eq(options.active, true))
+    .orderBy(asc(options.name));
+
+  const tagRows = await db
+    .select({
+      optionId: optionTags.optionId,
+      name: tags.name,
+    })
+    .from(optionTags)
+    .innerJoin(tags, eq(optionTags.tagId, tags.id));
+
+  const tagsByOption = new Map<string, string[]>();
+  for (const tagRow of tagRows) {
+    const list = tagsByOption.get(tagRow.optionId) ?? [];
+    list.push(tagRow.name);
+    tagsByOption.set(tagRow.optionId, list);
+  }
+
+  // Only entries for *active* Options influence the ranking — archiving an
+  // Option must not perturb anyone else's Score (per CONTEXT.md).
+  const logRows = await db
+    .select({
+      optionId: dinnerLog.optionId,
+      eatenOn: dinnerLog.eatenOn,
+    })
+    .from(dinnerLog)
+    .innerJoin(options, eq(dinnerLog.optionId, options.id))
+    .where(and(eq(options.active, true), lte(dinnerLog.eatenOn, todaySql)));
+
+  return {
+    options: rows.map((row) => ({
+      ...row,
+      tags: tagsByOption.get(row.id) ?? [],
+    })),
+    entries: logRows.map((row) => ({
+      optionId: row.optionId,
+      eatenOn: row.eatenOn,
+    })),
+  };
+}
+
+/**
+ * Log screen read model. Every entry joined to its Option (Active and
+ * Archived), newest `eaten_on` first. The screen handles the
+ * "Upcoming" / past split and the by-date grouping client-side.
+ */
+export type LogEntry = {
+  id: string;
+  eatenOn: string;
+  note: string | null;
+  option: {
+    id: string;
+    name: string;
+    kind: "home" | "restaurant";
+    active: boolean;
+  };
+};
+
+export async function getLog(): Promise<LogEntry[]> {
+  const rows = await db
+    .select({
+      id: dinnerLog.id,
+      eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
+      optionId: options.id,
+      optionName: options.name,
+      optionKind: options.kind,
+      optionActive: options.active,
+    })
+    .from(dinnerLog)
+    .innerJoin(options, eq(dinnerLog.optionId, options.id))
+    .orderBy(desc(dinnerLog.eatenOn), desc(dinnerLog.createdAt));
+
+  return rows.map((row) => ({
+    id: row.id,
+    eatenOn: row.eatenOn,
+    note: row.note,
+    option: {
+      id: row.optionId,
+      name: row.optionName,
+      kind: row.optionKind,
+      active: row.optionActive,
+    },
+  }));
+}
+
+/**
+ * Convenience for forms: every Option (Active + Archived), name-ordered,
+ * to populate the Log screen's edit/add `<select>`.
+ */
+export type SelectableOption = {
+  id: string;
+  name: string;
+  kind: "home" | "restaurant";
+  active: boolean;
+};
+
+export async function getAllOptionsForSelect(): Promise<SelectableOption[]> {
+  return db
+    .select({
+      id: options.id,
+      name: options.name,
+      kind: options.kind,
+      active: options.active,
+    })
+    .from(options)
+    .orderBy(asc(options.name));
 }

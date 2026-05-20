@@ -1,15 +1,24 @@
-// The root route is a data page in the shipped app; every data page is
-// `force-dynamic` so `next build` can render with no live `DATABASE_URL`.
+// The Tonight screen is the home route. Every data page is `force-dynamic`
+// so `next build` can render with no live `DATABASE_URL` (the Drizzle
+// client is lazy and only opens a socket on the first query).
 export const dynamic = "force-dynamic";
 
-export default function HomePage() {
-  return (
-    <main className="column">
-      <h1 className="font-display text-h1">Pick Me a Dinner</h1>
-      <p className="text-body text-muted">
-        The walking skeleton is live — Tonight, the Catalog, and the Log will
-        land in the tickets that follow.
-      </p>
-    </main>
-  );
+import { getTonightData } from "@/db/queries";
+import { epochDayFromSqlDate, today } from "@/lib/local-day";
+import { rankTonight, type RankLogEntry } from "@/lib/ranking";
+
+import { TonightScreen } from "./tonight-screen";
+
+export default async function HomePage() {
+  const todaySql = today();
+  const data = await getTonightData(todaySql);
+  const todayEpoch = epochDayFromSqlDate(todaySql);
+
+  const entries: RankLogEntry[] = data.entries.map((entry) => ({
+    optionId: entry.optionId,
+    eatenOn: epochDayFromSqlDate(entry.eatenOn),
+  }));
+
+  const rows = rankTonight(data.options, entries, todayEpoch);
+  return <TonightScreen rows={rows} />;
 }
