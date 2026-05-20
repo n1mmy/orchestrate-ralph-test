@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens for Pick Me a Dinner.
+ *
+ * Light theme is primary; the dark theme is derived under
+ * `prefers-color-scheme: dark`. See DESIGN.md for the canonical spec.
+ * Every later screen consumes these tokens via Tailwind utilities or
+ * direct `var(--…)` reference — there are no per-screen hex literals.
+ */
+:root {
+  /* Neutral base */
+  --color-bg: #f3f4f6;
+  --color-surface: #ffffff;
+  --color-raised: #e8eaed;
+  --color-ink: #25282d;
+  --color-muted: #767a82;
+  --color-line: #d8dade;
+
+  /* Channel 1: meal kind */
+  --color-kind-home: #2c6e6e;
+  --color-kind-restaurant: #7a4f6b;
+  --color-kind-home-wash: #dde8e8;
+  --color-kind-restaurant-wash: #e7e0e6;
+
+  /* Channel 2: recency heatmap anchors */
+  --color-recency-overdue: #3f8a4a;
+  --color-recency-mid: #c8b78f;
+  --color-recency-recent: #c4453a;
+
+  /* Action (Pick button) */
+  --color-action: #2c2f36;
+  --color-action-hover: #3c4049;
+  --color-action-ink: #ffffff;
+
+  /* Feedback */
+  --color-success: #3f8a4a;
+  --color-success-wash: #dee9db;
+  --color-danger: #c4453a;
+  --color-danger-wash: #f3ddda;
+  --color-planned: #b9822b;
+
+  /* Tonight tag-filter exclude chip — carried from prior warm system,
+   * pending its own visual pass. */
+  --color-exclude: #b9822b;
+  --color-exclude-wash: #f3e6cc;
+
+  /* Type families — wired up by next/font in app/layout.tsx */
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Type scale */
+  --text-h1: 28px;
+  --text-name: 18px;
+  --text-body: 15px;
+  --text-chip: 13px;
+  --text-meta: 12px;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* Spacing — 4px base */
+  --space-2xs: 2px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 48px;
+
+  /* Radii */
+  --radius-badge: 3px;
+  --radius-input: 6px;
+  --radius-control: 6px;
+
+  /* Motion */
+  --motion-micro: 80ms;
+  --motion-short: 140ms;
+  --motion-medium: 220ms;
+
+  /* Layout */
+  --column-max: 560px;
+}
+
+@media (min-width: 720px) {
+  :root {
+    --column-max: 700px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #1a1c1f;
+    --color-surface: #232629;
+    --color-raised: #2c2f33;
+    --color-ink: #e6e7ea;
+    --color-muted: #8b8f98;
+    --color-line: #383b40;
+
+    --color-kind-home: #4a9a9a;
+    --color-kind-restaurant: #a87d99;
+    --color-kind-home-wash: #212e30;
+    --color-kind-restaurant-wash: #2e2a30;
+
+    --color-recency-overdue: #5aa863;
+    --color-recency-mid: #bdae89;
+    --color-recency-recent: #d65a4f;
+
+    --color-action: #e6e7ea;
+    --color-action-hover: #c8cad0;
+    --color-action-ink: #1a1c1f;
+
+    --color-success: #5aa863;
+    --color-success-wash: #26312a;
+    --color-danger: #d65a4f;
+    --color-danger-wash: #33272a;
+    --color-planned: #cf9a45;
+
+    --color-exclude: #cf9a45;
+    --color-exclude-wash: #2f2820;
+  }
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+
+/* Mono numerals everywhere we ask for it */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Shared centered-column primitive. Every screen wraps its content in
+ * `.column` to land on the disciplined mobile/desktop widths from DESIGN.md.
+ */
+.column {
+  width: 100%;
+  max-width: var(--column-max);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--space-lg);
+  padding-right: var(--space-lg);
+}
