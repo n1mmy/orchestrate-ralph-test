@@ -1,6 +1,6 @@
 # 06 — Shared-password auth gate
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -55,20 +55,20 @@ terminating ingress proxy.
 
 ## Acceptance criteria
 
-- [ ] `/login` renders a centered single password field with the "Pick Me a
+- [x] `/login` renders a centered single password field with the "Pick Me a
       Dinner" wordmark and no tagline
-- [ ] A correct password (`passwordMatches`, constant-time) establishes the
+- [x] A correct password (`passwordMatches`, constant-time) establishes the
       sealed `iron-session` cookie (`HttpOnly`, `Secure`, `SameSite=Lax`,
       `Path=/`, ~180-day TTL) and redirects to `/`
-- [ ] A wrong password shows the inline "Incorrect password" error with the
+- [x] A wrong password shows the inline "Incorrect password" error with the
       field cleared — no lockout
-- [ ] `middleware.ts` redirects an unauthenticated or expired request to
+- [x] `middleware.ts` redirects an unauthenticated or expired request to
       `/login`; `/login`, `/api/ready`, and static assets are not gated
-- [ ] Every mutating server action is `authedAction`-wrapped (auth enforced in
+- [x] Every mutating server action is `authedAction`-wrapped (auth enforced in
       the action, since a Server Action is reachable by id from any route);
       `login` is the one exception
-- [ ] The §4 security headers are present on middleware responses
-- [ ] Tests: `lib/password.test.ts` (constant-time compare),
+- [x] The §4 security headers are present on middleware responses
+- [x] Tests: `lib/password.test.ts` (constant-time compare),
       `app/login/actions.test.ts` (correct password establishes the session,
       wrong password → inline error), `lib/require-session.test.ts`,
       `middleware.test.ts` (redirects an unauthenticated / expired request)
@@ -76,3 +76,13 @@ terminating ingress proxy.
 ## Blocked by
 
 - 03 — Options catalog: CRUD
+
+## Comments
+
+Implemented the iron-session-sealed shared-password gate end-to-end:
+`lib/password.ts` (constant-time), `lib/session.ts` / `lib/get-session.ts` /
+`lib/require-session.ts`, `lib/authed-action.ts` upgraded from pass-through to
+real gate, `app/login/{page,login-form,actions}.tsx`, and `middleware.ts`
+with the §4 security headers. Build needed a `webpack` shim in
+`next.config.mjs` to keep `lib/schema-check.ts` (and its `postgres` import)
+out of the Edge bundle that Next produces alongside `middleware.ts`.
