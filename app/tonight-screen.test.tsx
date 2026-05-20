@@ -290,16 +290,100 @@ describe("AI search (rendered by TonightScreen)", () => {
     expect(itemsRestored[0]?.textContent).toContain("Alice's Pizza");
   });
 
-  it("renders an inline message when the action returns AI_SEARCH_UNAVAILABLE", async () => {
+  it("a failed search leaves the deterministic list intact and shows a persistent inline error", async () => {
+    aiSearchAction.mockReset();
+    aiSearchAction.mockResolvedValueOnce({ ok: false });
+    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+
+    // Before submit: deterministic order is Alice (rank 1), Banh Mi (rank 2).
+    const itemsBefore = screen.getAllByRole("listitem");
+    expect(itemsBefore[0]?.textContent).toContain("Alice's Pizza");
+    expect(itemsBefore[1]?.textContent).toContain("Banh Mi");
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Search unavailable — try again")).toBeDefined();
+    });
+
+    // The deterministic list is untouched — same rows in the same order.
+    const itemsAfter = screen.getAllByRole("listitem");
+    expect(itemsAfter).toHaveLength(2);
+    expect(itemsAfter[0]?.textContent).toContain("Alice's Pizza");
+    expect(itemsAfter[1]?.textContent).toContain("Banh Mi");
+  });
+
+  it("the inline error is announced via an aria-live region", async () => {
     aiSearchAction.mockReset();
     aiSearchAction.mockResolvedValueOnce({ ok: false });
     render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await waitFor(() => {
-      expect(
-        screen.getByText("AI search isn't available right now"),
-      ).toBeDefined();
+      const message = screen.getByText("Search unavailable — try again");
+      // Climb to the closest live region — assistive tech announces text
+      // that lands inside an `aria-live` container.
+      const live = message.closest("[aria-live]");
+      expect(live).not.toBeNull();
     });
+  });
+
+  it("the inline error persists across a subsequent submit — not cleared on submit alone", async () => {
+    aiSearchAction.mockReset();
+    aiSearchAction.mockResolvedValue({ ok: false });
+    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => {
+      expect(screen.getByText("Search unavailable — try again")).toBeDefined();
+    });
+
+    // A second submit: the error must remain visible across the submit — it
+    // is not cleared just because the Household tried again.
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    expect(screen.getByText("Search unavailable — try again")).toBeDefined();
+
+    await waitFor(() => {
+      expect(aiSearchAction).toHaveBeenCalledTimes(2);
+    });
+    // Still there after the second failure resolves.
+    expect(screen.getByText("Search unavailable — try again")).toBeDefined();
+  });
+
+  it("the inline error clears when a subsequent search succeeds", async () => {
+    aiSearchAction.mockReset();
+    aiSearchAction
+      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({
+        ok: true,
+        results: [{ optionId: "opt-a", reason: "Friday pizza tradition." }],
+      });
+    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => {
+      expect(screen.getByText("Search unavailable — try again")).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => {
+      expect(screen.queryByText("Search unavailable — try again")).toBeNull();
+    });
+  });
+
+  it("the inline error clears when the Clear control is used", async () => {
+    aiSearchAction.mockReset();
+    aiSearchAction.mockResolvedValueOnce({ ok: false });
+    render(<TonightScreen tonightsDinner={[]} pickerRows={pickerRows} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => {
+      expect(screen.getByText("Search unavailable — try again")).toBeDefined();
+    });
+
+    // Clear is exposed alongside the error so the Household has an explicit
+    // way to dismiss it without re-submitting.
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(screen.queryByText("Search unavailable — try again")).toBeNull();
   });
 });

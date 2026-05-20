@@ -197,10 +197,16 @@ export function TonightScreen({
  * is allowed. A Clear control restores the deterministic picker; a page reload
  * does the same — the AI result is never persisted.
  *
- * Error handling is intentionally minimal here (per the ticket — tickets 15
- * and 16 add the malformed/empty/dedup polish): a basic inline message reads
- * "AI search isn't available right now" when the action returns
- * `AI_SEARCH_UNAVAILABLE`.
+ * Failure-mode policy (ticket 15) — AI search is fail-safe. Every failure
+ * mode (timeout/abort, HTTP error, network error, no `tool_use` block,
+ * malformed tool input) collapses to a single `AI_SEARCH_UNAVAILABLE`
+ * outcome upstream; here we surface it as a **persistent** inline error
+ * under the search box ("Search unavailable — try again"), announced via an
+ * `aria-live` region. The deterministic list is left exactly as-is — AI
+ * search being down never blocks the Household from deciding dinner. The
+ * error is **not** cleared on submit: only the Clear control or a later
+ * successful search clears it. The Household can retry, or simply keep
+ * using the deterministic ranking.
  */
 function AiSearchBox({
   pickerRows,
@@ -219,13 +225,17 @@ function AiSearchBox({
   const [error, setError] = useState<string | null>(null);
 
   function submit() {
-    setError(null);
+    // The error is intentionally **not** cleared here — a transient failure
+    // stays visible across the next submit so the Household can keep using
+    // the deterministic list. It clears only on a successful search (below)
+    // or on Clear.
     startTransition(async () => {
       const result = await aiSearchAction(query);
       if (!result.ok) {
-        setError("AI search isn't available right now");
+        setError("Search unavailable — try again");
         return;
       }
+      setError(null);
       setResults(result.results);
     });
   }
@@ -284,7 +294,7 @@ function AiSearchBox({
         >
           Search
         </button>
-        {aiRows !== null ? (
+        {aiRows !== null || error !== null ? (
           <button
             type="button"
             onClick={clear}
@@ -294,11 +304,14 @@ function AiSearchBox({
           </button>
         ) : null}
       </form>
-      {error ? (
-        <p className="mt-sm text-meta text-danger" role="alert">
-          {error}
-        </p>
-      ) : null}
+      {/* The error lives in a polite `aria-live` region under the search box so
+       * a failed search is announced to assistive tech; it persists across
+       * subsequent submits and clears only on Clear or a successful search. */}
+      <div role="status" aria-live="polite" className="mt-sm">
+        {error ? (
+          <p className="text-meta text-danger">{error}</p>
+        ) : null}
+      </div>
 
       {aiRows === null ? (
         children
