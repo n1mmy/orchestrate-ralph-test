@@ -15,6 +15,13 @@
       "when": 1779232019827,
       "tag": "0002_curious_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779241430976,
+      "tag": "0003_cool_namora",
+      "breakpoints": true
     }
   ]
 }

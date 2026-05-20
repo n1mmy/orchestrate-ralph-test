@@ -123,9 +123,11 @@ export const dinnerLog = pgTable(
  * calendar day in `APP_TZ`; the today's-rejections query keys on it, so a
  * new calendar day empties the result on its own — no day-boundary code.
  * The table is single-household-small, so the only index needed at this
- * phase is on `rejected_on` to support that query. A `UNIQUE(option_id,
- * rejected_on)` constraint is added later (ticket 28) when dated manual
- * entry can re-visit the same date.
+ * phase is on `rejected_on` to support that query.
+ * `(option_id, rejected_on)` is unique: manual dated entry (ADR-0008)
+ * means the same date can be revisited by hand, so the same Option must
+ * not carry two Rejections for one date. This supersedes ADR-0006's note
+ * that no such constraint was needed while Rejections were live-only.
  */
 export const rejections = pgTable(
   "rejections",
@@ -140,7 +142,13 @@ export const rejections = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index("rejections_rejected_on_idx").on(table.rejectedOn)],
+  (table) => [
+    index("rejections_rejected_on_idx").on(table.rejectedOn),
+    unique("rejections_option_rejected_on_unique").on(
+      table.optionId,
+      table.rejectedOn,
+    ),
+  ],
 );
 
 /** Row type for the `rejections` table — the shape `db.select()` returns. */
