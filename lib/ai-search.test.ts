@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  AI_SEARCH_UNAVAILABLE,
+  REQUEST_TIMEOUT_MS,
   buildSnapshot,
+  createAiSearchClient,
   parseAndValidate,
   type SnapshotLogEntry,
   type SnapshotOption,
@@ -247,13 +250,23 @@ describe("parseAndValidate", () => {
     ]);
   });
 
-  it("returns an empty array for a non-object input", () => {
-    expect(parseAndValidate(null, idByIndex)).toEqual([]);
-    expect(parseAndValidate(42, idByIndex)).toEqual([]);
+  it("returns null for a non-object input (malformed)", () => {
+    expect(parseAndValidate(null, idByIndex)).toBeNull();
+    expect(parseAndValidate(42, idByIndex)).toBeNull();
   });
 
-  it("returns an empty array when ranking is not an array", () => {
-    expect(parseAndValidate({ ranking: "not-an-array" }, idByIndex)).toEqual([]);
+  it("returns null when ranking is missing (malformed)", () => {
+    expect(parseAndValidate({}, idByIndex)).toBeNull();
+  });
+
+  it("returns null when ranking is not an array (malformed)", () => {
+    expect(parseAndValidate({ ranking: "not-an-array" }, idByIndex)).toBeNull();
+    expect(parseAndValidate({ ranking: 7 }, idByIndex)).toBeNull();
+    expect(parseAndValidate({ ranking: null }, idByIndex)).toBeNull();
+  });
+
+  it("returns [] for a genuinely empty ranking — a real answer, not a Failure", () => {
+    expect(parseAndValidate({ ranking: [] }, idByIndex)).toEqual([]);
   });
 
   it("drops rows whose id is not an integer or reason is not a string", () => {
@@ -268,5 +281,154 @@ describe("parseAndValidate", () => {
       idByIndex,
     );
     expect(result).toEqual([{ optionId: CHICKEN_ID, reason: "ok" }]);
+  });
+});
+
+/**
+ * `createAiSearchClient(...).search` failure-mode coverage. Every failure
+ * mode — timeout/abort, HTTP error (429, 5xx, non-429 4xx), network error,
+ * a response with no `tool_use` block, and a `tool_use` block with malformed
+ * input — collapses to the single typed `AI_SEARCH_UNAVAILABLE` outcome with
+ * **exactly one** model call (no retry). A valid empty `ranking: []` stays
+ * `{ ok: true, results: [] }`.
+ */
+describe("createAiSearchClient.search failure modes", () => {
+  const input = {
+    options: [
+      { id: ALICE_ID, name: "Alice's Pizza", kind: "restaurant" as const, tags: [], notes: null },
+    ],
+    log: [],
+    rejections: [],
+    today: "2026-05-20",
+    query: "anything",
+  };
+
+  function jsonResponse(body: unknown, init: { status?: number } = {}): Response {
+    return new Response(JSON.stringify(body), {
+      status: init.status ?? 200,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  it("90-second timeout: REQUEST_TIMEOUT_MS is sized for an extended-thinking call's latency tail", () => {
+    expect(REQUEST_TIMEOUT_MS).toBe(90_000);
+  });
+
+  it("times out via AbortController — aborted call collapses to AI_SEARCH_UNAVAILABLE", async () => {
+    // A fetch that listens for the abort signal and rejects with AbortError.
+    const fetchImpl = vi.fn(
+      (_url: string, init?: RequestInit): Promise<Response> =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        }),
+    );
+    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch, 10);
+    const result = await client.search(input);
+    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses an HTTP 429 (rate limit) to AI_SEARCH_UNAVAILABLE with one call", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({ error: "rate limit" }, { status: 429 }));
+    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const result = await client.search(input);
+    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses an HTTP 500 (server error) to AI_SEARCH_UNAVAILABLE with one call", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({}, { status: 500 }));
+    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const result = await client.search(input);
+    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses a non-429 4xx (e.g. 400) to AI_SEARCH_UNAVAILABLE with one call", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({}, { status: 400 }));
+    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const result = await client.search(input);
+    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses a network error (fetch throws) to AI_SEARCH_UNAVAILABLE with one call", async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError("network down");
+    });
+    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const result = await client.search(input);
+    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses a response with no tool_use block to AI_SEARCH_UNAVAILABLE", async () => {
+    // 200 OK but the Messages response only has a text block — the model
+    // ignored the tool, so there is nothing to render.
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({ content: [{ type: "text", text: "I refuse to use the tool." }] }),
+    );
+    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const result = await client.search(input);
+    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses a tool_use block with malformed input (ranking missing) to AI_SEARCH_UNAVAILABLE", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        content: [{ type: "tool_use", name: "rank_options", input: { not_ranking: true } }],
+      }),
+    );
+    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const result = await client.search(input);
+    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("collapses a tool_use block whose ranking is not an array to AI_SEARCH_UNAVAILABLE", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        content: [
+          { type: "tool_use", name: "rank_options", input: { ranking: "not-an-array" } },
+        ],
+      }),
+    );
+    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const result = await client.search(input);
+    expect(result).toEqual(AI_SEARCH_UNAVAILABLE);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("a genuinely empty ranking ([]) stays ok: true — distinct from malformed", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        content: [{ type: "tool_use", name: "rank_options", input: { ranking: [] } }],
+      }),
+    );
+    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const result = await client.search(input);
+    expect(result).toEqual({ ok: true, results: [] });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("makes exactly one model call on success — no retry, ever", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        content: [
+          {
+            type: "tool_use",
+            name: "rank_options",
+            input: { ranking: [{ id: 1, reason: "habit fit" }] },
+          },
+        ],
+      }),
+    );
+    const client = createAiSearchClient("k", fetchImpl as unknown as typeof fetch);
+    const result = await client.search(input);
+    expect(result).toEqual({ ok: true, results: [{ optionId: ALICE_ID, reason: "habit fit" }] });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

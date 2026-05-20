@@ -1,6 +1,6 @@
 # 15 — AI search: failure model and fallback
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -50,28 +50,28 @@ Household can retry, or simply keep using the deterministic ranking.
 
 ## Acceptance criteria
 
-- [ ] The model call carries a per-request timeout via `AbortController`, sized
+- [x] The model call carries a per-request timeout via `AbortController`, sized
       at 90 seconds (`REQUEST_TIMEOUT_MS`); a timed-out call is aborted, not
       left to hang
-- [ ] The call is made exactly **once** — there is no retry, whatever the
+- [x] The call is made exactly **once** — there is no retry, whatever the
       failure class
-- [ ] Every failure mode — timeout/abort, HTTP error (429, 5xx, non-429 4xx),
+- [x] Every failure mode — timeout/abort, HTTP error (429, 5xx, non-429 4xx),
       network error, a response with no `tool_use` block, and a `tool_use` block
       with malformed input — collapses to the single typed
       `AI_SEARCH_UNAVAILABLE` outcome
-- [ ] `parseAndValidate` returns `null` for malformed tool input (`results`
+- [x] `parseAndValidate` returns `null` for malformed tool input (`results`
       missing or not an array) and `[]` for a valid, genuinely empty result; the
       client treats `null` as the fallback and `[]` as `ok: true`
-- [ ] A failed search leaves the deterministic list exactly as-is and shows a
+- [x] A failed search leaves the deterministic list exactly as-is and shows a
       persistent inline error under the search box, announced to assistive tech
-- [ ] The inline error clears on query-clear or a subsequent successful search,
+- [x] The inline error clears on query-clear or a subsequent successful search,
       never on submit alone
-- [ ] Unit tests (`lib/ai-search.test.ts`) cover each failure class mapping to
+- [x] Unit tests (`lib/ai-search.test.ts`) cover each failure class mapping to
       `AI_SEARCH_UNAVAILABLE` with exactly one model call, the no-tool-use and
       malformed-input fallbacks, and the genuinely-empty result staying
       `ok: true`; a screen-level test covers "a failed search leaves the
       deterministic list intact and shows the error"
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
 
 ## Blocked by
 

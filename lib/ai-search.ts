@@ -47,8 +47,15 @@ const ANTHROPIC_VERSION = "2023-06-01";
 const MODEL = "claude-opus-4-5";
 const MAX_TOKENS = 4096;
 
-/** Per-request timeout. A single AI-search call that runs longer aborts. */
-export const REQUEST_TIMEOUT_MS = 30_000;
+/** Per-request timeout. A single AI-search call that runs longer aborts.
+ *
+ * Sized at 90 seconds — substantially longer than a plain completion would
+ * need — so the budget clears the latency tail of a healthy extended-thinking
+ * call (ticket 17) rather than racing it. The call is made exactly once: a
+ * timeout has already spent its full budget, and a transient HTTP or network
+ * error was already retried inside the Anthropic SDK client before it
+ * surfaced here. Every failure mode collapses to `AI_SEARCH_UNAVAILABLE`. */
+export const REQUEST_TIMEOUT_MS = 90_000;
 
 // ---------------------------------------------------------------------------
 // Snapshot input shapes
@@ -348,18 +355,27 @@ export function buildSystemPrompt(): string {
  * snapshot's id range) is dropped. The model's ordering is preserved across
  * the drops.
  *
- * The malformed-vs-empty distinction lands in tickets 15/16; this skeleton
- * accepts the simple shape and rejects nothing else. A non-array `ranking`, a
- * row whose `id` is not an integer, or a row whose `reason` is not a string is
- * dropped silently — the result is the validated subset.
+ * Distinguishes **malformed** input from a valid, genuinely **empty** result:
+ *
+ *  - Returns `null` when the input is malformed — not an object, or `ranking`
+ *    is missing, or `ranking` is not an array. The client treats `null` as a
+ *    Failure and collapses to `AI_SEARCH_UNAVAILABLE`, falling back to the
+ *    deterministic list.
+ *  - Returns `[]` when `ranking` is a valid array that yields no usable rows
+ *    — including a genuinely empty `ranking: []`. The client returns this as
+ *    `ok: true` and the empty-state handling (ticket 16) takes it from there.
+ *
+ * Individual rows whose `id` is not an integer, whose `reason` is not a
+ * string, or whose `id` is a hallucination outside the snapshot's id range
+ * are dropped silently — that's not malformed-as-a-whole, just a row to skip.
  */
 export function parseAndValidate(
   toolInput: unknown,
   idByIndex: Record<string, string>,
-): RankedResult[] {
-  if (!toolInput || typeof toolInput !== "object") return [];
+): RankedResult[] | null {
+  if (!toolInput || typeof toolInput !== "object") return null;
   const ranking = (toolInput as { ranking?: unknown }).ranking;
-  if (!Array.isArray(ranking)) return [];
+  if (!Array.isArray(ranking)) return null;
   const out: RankedResult[] = [];
   for (const raw of ranking) {
     if (!raw || typeof raw !== "object") continue;
@@ -378,9 +394,18 @@ export function parseAndValidate(
 // Client
 // ---------------------------------------------------------------------------
 
-/** Sentinel for every AI-search failure (network, non-200, malformed body, no
- * `tool_use` block). The action layer renders one inline message against this
- * shape — there is no other failure mode to handle. */
+/**
+ * Sentinel for every AI-search failure. Every failure mode collapses through
+ * `search` to this one shape: a timeout/abort, an HTTP error (429, 5xx, or
+ * non-429 4xx alike), a network error, a malformed response body, a response
+ * with no `tool_use` block, and a `tool_use` block whose input is malformed
+ * (`parseAndValidate` returns `null` — `ranking` missing or not an array). A
+ * valid empty `ranking: []` is a real answer and stays `ok: true`.
+ *
+ * The action layer renders one persistent inline message against this shape
+ * and leaves the deterministic ranked list exactly as-is — AI search being
+ * down never blocks the Household from deciding dinner.
+ */
 export const AI_SEARCH_UNAVAILABLE = { ok: false as const };
 export type AiSearchUnavailable = typeof AI_SEARCH_UNAVAILABLE;
 
@@ -471,6 +496,7 @@ export function createAiSearchClient(
       const toolInput = findToolUseInput(parsed, RANK_OPTIONS_TOOL.name);
       if (toolInput === undefined) return AI_SEARCH_UNAVAILABLE;
       const results = parseAndValidate(toolInput, idByIndex);
+      if (results === null) return AI_SEARCH_UNAVAILABLE;
       return { ok: true, results };
     },
   };
