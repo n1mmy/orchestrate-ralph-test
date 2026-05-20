@@ -77,3 +77,7 @@ identically wherever it is invoked (ADR-0007).
 - 22 — Option detail page: route, identity, and Recency (the page the
   `OptionControls` "Actions" section is rendered into — independent of the
   History work in 23/24)
+
+## Comments
+
+- attempt 1: worker succeeded but merge into integration aborted on conflict in `app/catalog/[id]/page.tsx` (issue 23's merged History rework changed the same `page.tsx`). Re-run branches off the updated tip — the History section is now in place — so layer the new "Actions" heading and `<OptionControls>` rendering on top of the existing structure rather than rewriting the file from scratch.
