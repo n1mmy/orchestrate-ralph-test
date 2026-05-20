@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import {
+  getAllTagNames,
   getLogOptionChoices,
   getOptionById,
   getOptionLog,
@@ -9,12 +10,14 @@ import {
   type LogOptionChoice,
 } from "@/db/queries";
 import { today as todaySqlDate, epochDayFromSqlDate } from "@/lib/local-day";
+import { placesEnabled } from "@/lib/places";
 import { rankOption, type RankOption } from "@/lib/ranking";
 import { formatDinnerDate, groupByDay } from "@/lib/dinner-grouping";
 import { kindBarClass } from "../../kind-bar";
 import { RowChips } from "../../tonight-row";
 import { LogEntryRow } from "../../log/log-entry-row";
 import { RejectionRow } from "../../log/rejection-row";
+import { OptionControls } from "./option-controls";
 
 /**
  * The Option detail page — `/catalog/[id]`. A `force-dynamic` server
@@ -33,10 +36,18 @@ import { RejectionRow } from "../../log/rejection-row";
  * Option name carried by the meal-kind colour channel), the **Recency**
  * section (the same `RowChips` a Tonight row carries — Recency chip
  * followed by Tag chips, fed from `rankOption`), an **Actions** section
- * (stubbed — `OptionControls` lands in ticket 25), a conditional
+ * (`OptionControls` — the toolbar carrying Edit, Archive, a conditional
+ * Delete, Reject, and the shared `PickButton`; ADR-0007), a conditional
  * **Details** `<dl>`, and a single **History** section (built in ticket
  * 23). There is **no Score block**: the as-built page never shows a Score
  * number to the Household.
+ *
+ * `canDelete` is fed from `optionLogEntries.length === 0` — the
+ * Hard-delete rule (ADR-0001) blocks deleting an Option with Log entries,
+ * so the Delete control is hidden rather than shown to fail. The check is
+ * advisory only; `deleteOption` still translates a server-side
+ * `ON DELETE RESTRICT` violation into the inline error path, in case a
+ * Log entry was added between page load and the click.
  */
 export const dynamic = "force-dynamic";
 
@@ -56,6 +67,7 @@ export default async function OptionDetailPage({
     optionLogEntries,
     optionRejections,
     optionChoices,
+    tagSuggestions,
   ] = await Promise.all([
     getOptionById(id),
     getOptionLog(id, todaySql),
@@ -63,6 +75,7 @@ export default async function OptionDetailPage({
     getOptionLogEntries(id),
     getOptionRejections(id),
     getLogOptionChoices(),
+    getAllTagNames(),
   ]);
 
   if (!option) notFound();
@@ -118,7 +131,12 @@ export default async function OptionDetailPage({
         <h2 className="text-meta font-emphasis uppercase tracking-wide text-muted">
           Actions
         </h2>
-        {/* OptionControls — wired in ticket 25. */}
+        <OptionControls
+          option={option}
+          tagSuggestions={tagSuggestions}
+          placesEnabled={placesEnabled()}
+          canDelete={optionLogEntries.length === 0}
+        />
       </section>
 
       {hasDetails ? (

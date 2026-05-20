@@ -1,6 +1,6 @@
 # 25 — Option detail page: the Actions section (OptionControls)
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -60,15 +60,15 @@ identically wherever it is invoked (ADR-0007).
 
 ## Acceptance criteria
 
-- [ ] `app/catalog/[id]/option-controls.tsx` exports `OptionControls`, rendered under the page's "Actions" heading
-- [ ] The toolbar offers Edit, Archive, a conditional Delete, Reject, and a `PickButton`, each reusing its existing server action
-- [ ] Edit swaps the controls for the reused `OptionForm` inline; a save revalidates `/catalog/[id]` and refreshes the page
-- [ ] Reject opens an inline optional-reason form; a same-day collision shows the typed-result error inline
-- [ ] Archive and Delete each take a §17 inline-confirm step
-- [ ] Delete renders only when the Option has no Log entries (`canDelete`)
-- [ ] A successful Delete routes to `/catalog`; a Delete blocked by the Hard-delete rule shows an inline error and keeps the page
-- [ ] `updateOption` / `archiveOption` / `deleteOption` and `rejectOption` revalidate `/catalog/[id]` alongside their existing targets
-- [ ] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
+- [x] `app/catalog/[id]/option-controls.tsx` exports `OptionControls`, rendered under the page's "Actions" heading
+- [x] The toolbar offers Edit, Archive, a conditional Delete, Reject, and a `PickButton`, each reusing its existing server action
+- [x] Edit swaps the controls for the reused `OptionForm` inline; a save revalidates `/catalog/[id]` and refreshes the page
+- [x] Reject opens an inline optional-reason form; a same-day collision shows the typed-result error inline
+- [x] Archive and Delete each take a §17 inline-confirm step
+- [x] Delete renders only when the Option has no Log entries (`canDelete`)
+- [x] A successful Delete routes to `/catalog`; a Delete blocked by the Hard-delete rule shows an inline error and keeps the page
+- [x] `updateOption` / `archiveOption` / `deleteOption` and `rejectOption` revalidate `/catalog/[id]` alongside their existing targets
+- [x] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
 
 ## Blocked by
 
@@ -82,3 +82,4 @@ identically wherever it is invoked (ADR-0007).
 
 - attempt 1: worker succeeded but merge into integration aborted on conflict in `app/catalog/[id]/page.tsx` (issue 23's merged History rework changed the same `page.tsx`). Re-run branches off the updated tip — the History section is now in place — so layer the new "Actions" heading and `<OptionControls>` rendering on top of the existing structure rather than rewriting the file from scratch.
 - attempt 2: worker succeeded but merge into integration again aborted on conflict in `app/catalog/[id]/page.tsx` — this round merged issue 24 first, which also reworked the same `page.tsx` to render Rejections inside the History section. Re-run branches off the updated tip (24 now merged): the History block now imports `RejectionRow` and renders Rejections inside its date groups; layer the new "Actions" heading and `<OptionControls>` rendering on top of *that* structure.
+- attempt 3: done. Layered the new `<OptionControls>` on top of the merged History structure (no edits to the History section), added the `revalidateCatalog()` helper on `updateOption` / `archiveOption` / `deleteOption`, and added a 10-test unit suite covering the toolbar, the §17 confirm steps, the inline reject form (including the typed `{ok:false}` collision), and the routed vs blocked Delete paths.
