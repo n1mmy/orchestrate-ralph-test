@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 
+import type { TodayRejection } from "@/db/queries";
 import type { TonightRow as TonightRowData } from "@/lib/ranking";
 import {
   type KindFilter,
@@ -14,6 +15,7 @@ import {
 import type { TonightsDinnerEntry } from "@/lib/tonights-dinner";
 
 import { KindSegment } from "./kind-segment";
+import { RejectedTonightDisclosure } from "./rejected-tonight-disclosure";
 import { TagFilterBar } from "./tag-filter-bar";
 import { TonightRow } from "./tonight-row";
 import { TonightsDinnerBlock } from "./tonights-dinner-block";
@@ -36,6 +38,12 @@ type Props = {
    * shows the decided block regardless.
    */
   allRejected: boolean;
+  /**
+   * Today's Rejections, threaded through from `app/page.tsx`. Drives the
+   * "Rejected tonight (N)" disclosure pinned at the bottom of the page —
+   * collapsed by default, rendered only when this list is non-empty.
+   */
+  rejectedTonight: TodayRejection[];
 };
 
 /** A single AI-search result hit — UUID + AI rationale. */
@@ -63,6 +71,7 @@ export function TonightScreen({
   tonightsDinner,
   searchEnabled,
   allRejected,
+  rejectedTonight,
 }: Props) {
   const [kind, setKind] = useState<KindFilter>("all");
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
@@ -167,6 +176,7 @@ export function TonightScreen({
           Every Option has been rejected for tonight. They&apos;ll be back
           tomorrow.
         </p>
+        <RejectedTonightDisclosure rejectedTonight={rejectedTonight} />
       </main>
     );
   }
@@ -258,6 +268,8 @@ export function TonightScreen({
           onClearSearch={clearSearch}
         />
       )}
+
+      <RejectedTonightDisclosure rejectedTonight={rejectedTonight} />
     </main>
   );
 }

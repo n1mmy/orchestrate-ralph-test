@@ -1,65 +1,158 @@
 "use server";
 
 /**
- * Rejection server actions.
+ * Rejection server actions — every write to the `rejections` table lives
+ * in this one module so the `(option_id, rejected_on)` collision is
+ * handled in one place.
  *
- * `rejectOption(optionId, reason)` — the Tonight row's "Reject" affordance.
- *   Inserts a `rejections` row dated `today()` in `APP_TZ`. A blank or
- *   whitespace-only `reason` is stored as `null` so the AI snapshot sees
- *   "no reason" cleanly rather than `""` masquerading as one.
+ * Surface:
  *
- *   Stale or malformed Option ids (a row deleted between page render and
- *   the click, a corrupted client payload) collapse to one inline
- *   `ActionResult` error rather than a 500: Postgres `22P02`
- *   (invalid_text_representation, e.g. a non-UUID id) and `23503` (FK
- *   violation on the cascade) both map to the same user-facing message.
+ *   - `rejectOption(optionId, reason)` — the Tonight row's "Reject"
+ *     affordance. Dates to `today()` and delegates to `recordRejection`,
+ *     so it inherits the same `23505` collision handling as
+ *     `createRejection`.
  *
- *   Every successful Rejection revalidates `/` (Tonight, where the row
- *   drops out of the picker), `/log` (the Log screen surfaces dated
- *   Rejections), and `/catalog/[id]` (the Option detail page renders
- *   Rejection history). The Option detail revalidation is a wildcard
- *   `revalidatePath("/catalog/[id]", "page")` so every Option's page is
- *   marked stale without naming the id explicitly.
+ *   - `createRejection(optionId, rejectedOn, reason)` — the dated
+ *     manual entry from the Log screen or the Option detail page. The
+ *     caller picks the date; a deliberate same-date repeat is the typed
+ *     mistake the unique constraint reports inline.
  *
- * No `23505` (unique constraint) translation lives here — that branch is
- * ticket 12. A duplicate same-day Rejection cannot reach this action
- * today because the row drops out of the picker the moment it is
- * rejected; the constraint is defence-in-depth for the manual-entry
- * paths ticket 12 surfaces.
+ *   - `updateRejection(id, …)` — inline edit of an existing dated
+ *     Rejection. A failed update (e.g. moving it onto another
+ *     Rejection's date) reports the collision inline and leaves the row
+ *     untouched.
+ *
+ *   - `deleteRejection(id)` — removes a Rejection by id. Doubles as the
+ *     "Bring back" action behind the Tonight "Rejected tonight"
+ *     disclosure.
+ *
+ * Every successful write revalidates `/` (Tonight, where the picker
+ * filter depends on today's Rejections), `/log` (the Log screen surfaces
+ * dated Rejections), and `/catalog/[id]` (the Option detail page renders
+ * Rejection history).
  */
 import { revalidatePath } from "next/cache";
+import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { rejections } from "@/db/schema";
 import { type ActionResult, trimToNull } from "@/lib/action-result";
 import { authedAction } from "@/lib/authed-action";
-import { today } from "@/lib/local-day";
-import { isPgError } from "@/lib/pg-error";
+import { isValidSqlDate, today } from "@/lib/local-day";
+import { rejectionWriteError } from "@/lib/pg-error";
 
+const INVALID_DATE_MESSAGE = "Pick a valid date";
 const STALE_OPTION_MESSAGE = "That option is no longer available";
+
+/**
+ * Shared revalidation set for every successful write to `rejections`.
+ * `/catalog/[id]` is a wildcard ("page") so every Option's detail page
+ * is marked stale without naming the id explicitly.
+ */
+function revalidateRejectionViews(): void {
+  revalidatePath("/");
+  revalidatePath("/log");
+  revalidatePath("/catalog/[id]", "page");
+}
+
+/**
+ * Private core for every "create a Rejection" path. The caller has
+ * already validated the date (and the optionId shape, where relevant);
+ * this function performs the insert, maps the driver error to an inline
+ * message, and revalidates the affected views on success.
+ *
+ * `reason` is stored as `null` when blank/whitespace so the AI snapshot
+ * sees "no reason" cleanly rather than `""` masquerading as one.
+ */
+async function recordRejection(
+  optionId: string,
+  rejectedOn: string,
+  reason: string | null | undefined,
+): Promise<ActionResult> {
+  try {
+    await db.insert(rejections).values({
+      optionId,
+      reason: trimToNull(reason ?? null),
+      rejectedOn,
+    });
+  } catch (error) {
+    const friendly = rejectionWriteError(error);
+    if (friendly !== null) {
+      return { ok: false, error: friendly };
+    }
+    throw error;
+  }
+  revalidateRejectionViews();
+  return { ok: true };
+}
 
 export const rejectOption = authedAction(
   async (optionId: string, reason: string): Promise<ActionResult> => {
     if (typeof optionId !== "string" || optionId === "") {
       return { ok: false, error: STALE_OPTION_MESSAGE };
     }
+    return recordRejection(optionId, today(), reason);
+  },
+);
+
+export const createRejection = authedAction(
+  async (
+    optionId: string,
+    rejectedOn: string,
+    reason: string | null,
+  ): Promise<ActionResult> => {
+    if (typeof optionId !== "string" || optionId === "") {
+      return { ok: false, error: STALE_OPTION_MESSAGE };
+    }
+    if (!isValidSqlDate(rejectedOn)) {
+      return { ok: false, error: INVALID_DATE_MESSAGE };
+    }
+    return recordRejection(optionId, rejectedOn, reason);
+  },
+);
+
+export type RejectionUpdate = {
+  optionId: string;
+  rejectedOn: string;
+  reason: string | null;
+};
+
+export const updateRejection = authedAction(
+  async (id: string, values: RejectionUpdate): Promise<ActionResult> => {
+    if (typeof id !== "string" || id === "") {
+      return { ok: false, error: "Couldn't save — try again" };
+    }
+    if (typeof values.optionId !== "string" || values.optionId === "") {
+      return { ok: false, error: STALE_OPTION_MESSAGE };
+    }
+    if (!isValidSqlDate(values.rejectedOn)) {
+      return { ok: false, error: INVALID_DATE_MESSAGE };
+    }
     try {
-      await db.insert(rejections).values({
-        optionId,
-        reason: trimToNull(reason),
-        rejectedOn: today(),
-      });
+      await db
+        .update(rejections)
+        .set({
+          optionId: values.optionId,
+          rejectedOn: values.rejectedOn,
+          reason: trimToNull(values.reason),
+        })
+        .where(eq(rejections.id, id));
     } catch (error) {
-      if (isPgError(error)) {
-        if (error.code === "22P02" || error.code === "23503") {
-          return { ok: false, error: STALE_OPTION_MESSAGE };
-        }
+      const friendly = rejectionWriteError(error);
+      if (friendly !== null) {
+        return { ok: false, error: friendly };
       }
       throw error;
     }
-    revalidatePath("/");
-    revalidatePath("/log");
-    revalidatePath("/catalog/[id]", "page");
+    revalidateRejectionViews();
     return { ok: true };
   },
 );
+
+export const deleteRejection = authedAction(async (id: string): Promise<void> => {
+  if (typeof id !== "string" || id === "") {
+    return;
+  }
+  await db.delete(rejections).where(eq(rejections.id, id));
+  revalidateRejectionViews();
+});

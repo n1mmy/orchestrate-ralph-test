@@ -13,6 +13,11 @@
  *     `logForDate` / `updateLogEntry` collision; `pickTonight` swallows
  *     the same conflict with `.onConflictDoNothing()` because a double-tap
  *     is not a real typed mistake.
+ *   - `23505` on `rejections_option_rejected_on_unique` — a Rejection for
+ *     that (Option, date) pair already exists. The dated-rejection
+ *     management surface (create/update) surfaces it inline.
+ *   - `22P02` — invalid_text_representation on a Rejection write, e.g.
+ *     a non-UUID Option id from a stale/corrupted client payload.
  */
 export type PgLikeError = {
   code?: string;
@@ -57,6 +62,40 @@ export function pgErrorMessage(error: unknown): string | null {
     ) {
       return "Already logged for that date";
     }
+  }
+  return null;
+}
+
+/**
+ * Rejection-specific Postgres error translation. The rejections table's
+ * write-error surface differs from the Log surface — the same `23503`
+ * code is the Option-FK cascade rather than a Log restrict, and `23505`
+ * is the deliberate dated-rejection collision rather than a Log collision
+ * — so it has its own mapping rather than overloading `pgErrorMessage`.
+ *
+ * Translated cases:
+ *   - `23505` on `rejections_option_rejected_on_unique` —
+ *     "Already rejected for that date".
+ *   - `22P02` (invalid_text_representation, a non-UUID Option id) and
+ *     `23503` (FK violation against `options.id`) — both collapse to
+ *     "That option is no longer available".
+ *
+ * Returns `null` for anything else; the caller rethrows.
+ */
+export function rejectionWriteError(error: unknown): string | null {
+  if (!isPgLikeError(error)) return null;
+  if (error.code === "23505") {
+    const constraint = constraintOf(error);
+    if (
+      constraint === undefined ||
+      constraint === "rejections_option_rejected_on_unique"
+    ) {
+      return "Already rejected for that date";
+    }
+    return null;
+  }
+  if (error.code === "22P02" || error.code === "23503") {
+    return "That option is no longer available";
   }
   return null;
 }

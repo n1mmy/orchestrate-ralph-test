@@ -559,3 +559,100 @@ export async function getTodayRejections(
     reason: row.reason,
   }));
 }
+
+/**
+ * Every Rejection joined to its Option for the Log screen's by-date
+ * grouping. Not filtered by `active` — an Archived Option's past
+ * Rejections still belong on the Log timeline (mirroring `getLog`).
+ *
+ * Ordered `desc(rejectedOn)` then `asc(name)` so a single day's
+ * Rejections sit alphabetically beside that day's Dinner.
+ */
+export type LogRejectionRow = {
+  id: string;
+  optionId: string;
+  optionName: string;
+  kind: "home" | "restaurant";
+  rejectedOn: string;
+  reason: string | null;
+};
+
+export async function getLogRejections(): Promise<LogRejectionRow[]> {
+  const rows = await db
+    .select({
+      id: rejections.id,
+      optionId: rejections.optionId,
+      optionName: options.name,
+      kind: options.kind,
+      rejectedOn: rejections.rejectedOn,
+      reason: rejections.reason,
+    })
+    .from(rejections)
+    .innerJoin(options, eq(rejections.optionId, options.id))
+    .orderBy(desc(rejections.rejectedOn), asc(options.name));
+
+  return rows.map((row) => ({
+    id: row.id,
+    optionId: row.optionId,
+    optionName: row.optionName,
+    kind: row.kind,
+    rejectedOn: row.rejectedOn,
+    reason: row.reason,
+  }));
+}
+
+/**
+ * Every Rejection for a single Option in the same `LogRejectionRow`
+ * shape — newest `rejected_on` first, ties broken by `createdAt`
+ * (newest entry on that date sits on top). The Option detail page
+ * calls this once per request.
+ *
+ * Not filtered by `active`: the detail page is reachable for an
+ * Archived Option, and its past Rejections stay on the page.
+ */
+export async function getOptionRejections(
+  optionId: string,
+): Promise<LogRejectionRow[]> {
+  const rows = await db
+    .select({
+      id: rejections.id,
+      optionId: rejections.optionId,
+      optionName: options.name,
+      kind: options.kind,
+      rejectedOn: rejections.rejectedOn,
+      reason: rejections.reason,
+      createdAt: rejections.createdAt,
+    })
+    .from(rejections)
+    .innerJoin(options, eq(rejections.optionId, options.id))
+    .where(eq(rejections.optionId, optionId))
+    .orderBy(desc(rejections.rejectedOn), desc(rejections.createdAt));
+
+  return rows.map((row) => ({
+    id: row.id,
+    optionId: row.optionId,
+    optionName: row.optionName,
+    kind: row.kind,
+    rejectedOn: row.rejectedOn,
+    reason: row.reason,
+  }));
+}
+
+/**
+ * Every Option (Active and Archived) as a thin `{ id, name, kind }`,
+ * name-ordered. Powers the dated-Rejection edit/add `<select>` on the
+ * Log screen and the Option detail page — the management surface needs
+ * Archived Options too because Archived history can still be edited.
+ */
+export type OptionChoice = {
+  id: string;
+  name: string;
+  kind: "home" | "restaurant";
+};
+
+export async function getOptionChoices(): Promise<OptionChoice[]> {
+  return db
+    .select({ id: options.id, name: options.name, kind: options.kind })
+    .from(options)
+    .orderBy(asc(options.name));
+}

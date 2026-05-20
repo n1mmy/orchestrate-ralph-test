@@ -1,6 +1,6 @@
 # 12 — Rejected tonight disclosure + rejection-management server actions
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -45,32 +45,36 @@ Add `app/rejection-actions.db.test.ts`, modelled on `app/log/actions.db.test.ts`
 
 ### Rejected tonight disclosure
 
-- [ ] A `RejectedTonightDisclosure` rendered at the bottom of `app/tonight-screen.tsx`, only when today has Rejections, collapsed by default
-- [ ] The heading is a button carrying `aria-expanded` and the literal label `Rejected tonight (N)` with the count of today's Rejections
-- [ ] Expanded, it lists today's Rejections with the Option name and the reason on a muted line when one was given
-- [ ] The disclosure list is the `rejectedTonight` (`TodayRejection[]`) prop passed from `app/page.tsx` — no new query is added
-- [ ] Each entry has a "Bring back" button calling the `authedAction`-wrapped `deleteRejection(rejectionId)` from `app/rejection-actions.ts` — the same shared delete action, no separate `bringBackRejection`
-- [ ] "Bring back" deletes the `rejections` row entirely and returns the Option to tonight's list immediately on revalidation
-- [ ] Only today's Rejections appear in the disclosure
-- [ ] The disclosure renders the same in picker mode and in decided mode's reopened picker
-- [ ] The disclosure toggle and every "Bring back" control are keyboard-operable with visible focus and adequate touch targets, and disabled while a delete is in flight
+- [x] A `RejectedTonightDisclosure` rendered at the bottom of `app/tonight-screen.tsx`, only when today has Rejections, collapsed by default
+- [x] The heading is a button carrying `aria-expanded` and the literal label `Rejected tonight (N)` with the count of today's Rejections
+- [x] Expanded, it lists today's Rejections with the Option name and the reason on a muted line when one was given
+- [x] The disclosure list is the `rejectedTonight` (`TodayRejection[]`) prop passed from `app/page.tsx` — no new query is added
+- [x] Each entry has a "Bring back" button calling the `authedAction`-wrapped `deleteRejection(rejectionId)` from `app/rejection-actions.ts` — the same shared delete action, no separate `bringBackRejection`
+- [x] "Bring back" deletes the `rejections` row entirely and returns the Option to tonight's list immediately on revalidation
+- [x] Only today's Rejections appear in the disclosure
+- [x] The disclosure renders the same in picker mode and in decided mode's reopened picker
+- [x] The disclosure toggle and every "Bring back" control are keyboard-operable with visible focus and adequate touch targets, and disabled while a delete is in flight
 
 ### Rejection-management server actions + queries
 
-- [ ] `app/rejection-actions.ts` holds `createRejection`, `updateRejection`, `deleteRejection`, and `rejectOption`, all `authedAction`-wrapped, rejecting an unauthenticated caller
-- [ ] A shared `recordRejection` core backs both `createRejection` and `rejectOption`; a shared `rejectionWriteError` maps `23505` → "Already rejected for that date" and `22P02`/`23503` → "That option is no longer available"
-- [ ] Create and update validate the date with `isValidSqlDate`, store an empty/whitespace reason as `null`, and reject an invalid date with `{ ok: false, error: "Pick a valid date" }`
-- [ ] A duplicate `(option_id, rejected_on)` on create or update returns the inline collision error rather than throwing; the row is left untouched on a failed update
-- [ ] `deleteRejection` removes the `rejections` row entirely and returns `void`; it is the one shared action behind Tonight's "Bring back"
-- [ ] `rejectOption` dates the Rejection to the Household's `today()` and inherits the `23505` handling
-- [ ] A shared `revalidateRejectionViews()` revalidates `/`, `/log`, and `/catalog/[id]`
-- [ ] `db/queries.ts` exports `getLogRejections()` (all Rejections, joined, `desc(rejectedOn)` then `asc(name)`), `getOptionRejections(optionId)` (one Option, `desc(rejectedOn)` then `desc(createdAt)`), both as `LogRejectionRow`, and `getOptionChoices()` covering Active and Archived Options
-- [ ] `app/rejection-actions.db.test.ts` integration-tests create / update / delete / `rejectOption` and the new queries against the real test database, including both collision paths, modelled on `app/log/actions.db.test.ts`
+- [x] `app/rejection-actions.ts` holds `createRejection`, `updateRejection`, `deleteRejection`, and `rejectOption`, all `authedAction`-wrapped, rejecting an unauthenticated caller
+- [x] A shared `recordRejection` core backs both `createRejection` and `rejectOption`; a shared `rejectionWriteError` maps `23505` → "Already rejected for that date" and `22P02`/`23503` → "That option is no longer available"
+- [x] Create and update validate the date with `isValidSqlDate`, store an empty/whitespace reason as `null`, and reject an invalid date with `{ ok: false, error: "Pick a valid date" }`
+- [x] A duplicate `(option_id, rejected_on)` on create or update returns the inline collision error rather than throwing; the row is left untouched on a failed update
+- [x] `deleteRejection` removes the `rejections` row entirely and returns `void`; it is the one shared action behind Tonight's "Bring back"
+- [x] `rejectOption` dates the Rejection to the Household's `today()` and inherits the `23505` handling
+- [x] A shared `revalidateRejectionViews()` revalidates `/`, `/log`, and `/catalog/[id]`
+- [x] `db/queries.ts` exports `getLogRejections()` (all Rejections, joined, `desc(rejectedOn)` then `asc(name)`), `getOptionRejections(optionId)` (one Option, `desc(rejectedOn)` then `desc(createdAt)`), both as `LogRejectionRow`, and `getOptionChoices()` covering Active and Archived Options
+- [x] `app/rejection-actions.db.test.ts` integration-tests create / update / delete / `rejectOption` and the new queries against the real test database, including both collision paths, modelled on `app/log/actions.db.test.ts`
 
 ### Build health
 
-- [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
 
 ## Blocked by
 
 - 10 — Rejections: reject/suppress + uniqueness
+
+## Comments
+
+- 2026-05-20 (done): Extended `app/rejection-actions.ts` with `recordRejection` (shared private core), `revalidateRejectionViews`, and `createRejection` / `updateRejection` / `deleteRejection`; refactored `rejectOption` to delegate to `recordRejection` so it now inherits 23505 handling. Added `rejectionWriteError` to `lib/pg-error.ts` mapping 23505 (rejections_option_rejected_on_unique) and 22P02/23503. Added `getLogRejections`, `getOptionRejections`, `getOptionChoices` (+ `LogRejectionRow`/`OptionChoice` types) to `db/queries.ts`. New `app/rejected-tonight-disclosure.tsx` component mounted at the bottom of `app/tonight-screen.tsx`; threaded `rejectedTonight: TodayRejection[]` from `app/page.tsx`. Wrote `app/rejection-actions.db.test.ts` modelled on the Log actions integration test (with `vi.mock`s for `next/cache` and `lib/require-session`, TRUNCATE between tests), covering create/update/delete/`rejectOption` + 23505 collisions + the three new queries. Gates green: `pnpm typecheck`, `pnpm test` (20 files, 203 tests), `pnpm build`. The `pnpm lint` in the build-health checklist line has no corresponding `lint` script in this repo (the verification gate per `docs/agents/ralph.md` is the three commands above) — ticked as not-applicable.
