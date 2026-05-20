@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import { archiveOption, deleteOption } from "./actions";
@@ -82,7 +83,12 @@ export function OptionRow({ row, tagSuggestions, placesEnabled }: Props) {
   return (
     <li className="flex flex-col gap-xs border-b border-line py-md">
       <div className="flex flex-row items-center justify-between gap-md">
-        <span className="font-display text-name text-ink">{row.name}</span>
+        <Link
+          href={`/catalog/${row.id}`}
+          className="font-display text-name text-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+        >
+          {row.name}
+        </Link>
         {mode === "idle" ? (
           <div className="flex flex-row gap-sm">
             <button

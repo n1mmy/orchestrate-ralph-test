@@ -387,3 +387,120 @@ export async function getAllOptionsForSelect(): Promise<SelectableOption[]> {
     .from(options)
     .orderBy(asc(options.name));
 }
+
+/**
+ * One Option by id, joined to its Tag names. Returns `null` when the id
+ * matches no row — including the malformed-uuid case, which would
+ * otherwise crash the Postgres driver with `22P02`. The Option detail
+ * page maps `null` to `notFound()`.
+ *
+ * Not filtered by `active` — the detail page is reachable for an
+ * Archived Option (ticket 14 wires the un-archive control).
+ */
+export type OptionDetail = {
+  id: string;
+  name: string;
+  kind: "home" | "restaurant";
+  url: string | null;
+  notes: string | null;
+  active: boolean;
+  address: string | null;
+  phone: string | null;
+  lat: number | null;
+  lng: number | null;
+  googlePlaceId: string | null;
+  mapsUrl: string | null;
+  tags: string[];
+};
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function getOptionById(id: string): Promise<OptionDetail | null> {
+  // Screen a malformed id rather than letting Postgres reject it with
+  // `22P02 invalid_text_representation` — the page maps `null` to a 404.
+  if (!UUID_RE.test(id)) return null;
+
+  const rows = await db
+    .select({
+      id: options.id,
+      name: options.name,
+      kind: options.kind,
+      url: options.url,
+      notes: options.notes,
+      active: options.active,
+      address: options.address,
+      phone: options.phone,
+      lat: options.lat,
+      lng: options.lng,
+      googlePlaceId: options.googlePlaceId,
+      mapsUrl: options.mapsUrl,
+    })
+    .from(options)
+    .where(eq(options.id, id));
+
+  if (rows.length === 0) return null;
+  const row = rows[0];
+
+  const tagRows = await db
+    .select({ name: tags.name })
+    .from(optionTags)
+    .innerJoin(tags, eq(optionTags.tagId, tags.id))
+    .where(eq(optionTags.optionId, id))
+    .orderBy(asc(tags.name));
+
+  return {
+    ...row,
+    tags: tagRows.map((t) => t.name),
+  };
+}
+
+/**
+ * Every Log entry for a single Option, joined to its Option for the
+ * `EntryRow` shape — newest `eaten_on` first. The detail page calls
+ * this once per request and hands the result to `groupByDay`.
+ */
+export async function getOptionLog(optionId: string): Promise<LogEntry[]> {
+  if (!UUID_RE.test(optionId)) return [];
+  const rows = await db
+    .select({
+      id: dinnerLog.id,
+      eatenOn: dinnerLog.eatenOn,
+      note: dinnerLog.note,
+      optionId: options.id,
+      optionName: options.name,
+      optionKind: options.kind,
+      optionActive: options.active,
+    })
+    .from(dinnerLog)
+    .innerJoin(options, eq(dinnerLog.optionId, options.id))
+    .where(eq(dinnerLog.optionId, optionId))
+    .orderBy(desc(dinnerLog.eatenOn), desc(dinnerLog.createdAt));
+
+  return rows.map((row) => ({
+    id: row.id,
+    eatenOn: row.eatenOn,
+    note: row.note,
+    option: {
+      id: row.optionId,
+      name: row.optionName,
+      kind: row.optionKind,
+      active: row.optionActive,
+    },
+  }));
+}
+
+/**
+ * Every Tag in the catalog with its id and name, ascending — feeds any
+ * caller that needs to look up Tag ids by name. The Option detail page
+ * doesn't need ids today, but `rankOption`-driven Tag chips only need
+ * the names, so the simpler `getAllTagNames` is preferred for that path.
+ */
+export type TagRow = { id: string; name: string };
+
+export async function getAllTags(): Promise<TagRow[]> {
+  return db
+    .select({ id: tags.id, name: tags.name })
+    .from(tags)
+    .orderBy(asc(tags.name));
+}

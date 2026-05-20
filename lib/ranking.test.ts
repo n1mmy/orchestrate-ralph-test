@@ -5,6 +5,7 @@ import {
   lastEaten,
   lastTagUse,
   optionScore,
+  rankOption,
   rankTonight,
   type RankLogEntry,
   type RankOption,
@@ -171,6 +172,98 @@ describe("ranking", () => {
       expect(Object.keys(row)).not.toContain("explanation");
       expect(Object.keys(row)).not.toContain("explanationChip");
       expect(Object.keys(row)).not.toContain("explanationText");
+    });
+  });
+
+  describe("rankOption", () => {
+    const today = 100;
+
+    it("matches the target's `rankTonight` row for an active Option", () => {
+      const ramen = option("a", "Ramen", ["soup"]);
+      const pho = option("b", "Pho", ["soup"]);
+      const burger = option("c", "Burger", ["meat"]);
+      const options: RankOption[] = [ramen, pho, burger];
+      const entries: RankLogEntry[] = [
+        { optionId: "a", eatenOn: today - 5 },
+        { optionId: "b", eatenOn: today - 12 },
+        { optionId: "c", eatenOn: today - 20 },
+      ];
+
+      const tonightRows = rankTonight(options, entries, today);
+      const ramenRow = tonightRows.find((r) => r.option.id === "a")!;
+
+      const ranking = rankOption({
+        target: ramen,
+        activeOptions: options,
+        activeLog: entries,
+        targetLog: entries.filter((e) => e.optionId === "a"),
+        today,
+      });
+
+      expect(ranking.score).toBe(ramenRow.score);
+      expect(ranking.recencyDays).toBe(ramenRow.recencyDays);
+      expect(ranking.neverEaten).toBe(ramenRow.neverEaten);
+      expect(ranking.tags).toEqual(ramenRow.tags);
+    });
+
+    it("flags never-eaten and returns CAP recency", () => {
+      const fresh = option("z", "Fresh", ["new-tag"]);
+      const ranking = rankOption({
+        target: fresh,
+        activeOptions: [fresh],
+        activeLog: [],
+        targetLog: [],
+        today,
+      });
+      expect(ranking.neverEaten).toBe(true);
+      expect(ranking.recencyDays).toBe(CAP);
+      expect(ranking.tags[0].neverEaten).toBe(true);
+      expect(ranking.tags[0].days).toBe(CAP);
+      expect(ranking.tags[0].overdue).toBe(true); // CAP >= OVERDUE_THRESHOLD
+    });
+
+    it("caps recency at CAP for a very-long-ago eat", () => {
+      const old = option("old", "Old", []);
+      const ranking = rankOption({
+        target: old,
+        activeOptions: [old],
+        activeLog: [{ optionId: "old", eatenOn: today - 9999 }],
+        targetLog: [{ optionId: "old", eatenOn: today - 9999 }],
+        today,
+      });
+      expect(ranking.recencyDays).toBe(CAP);
+      expect(ranking.neverEaten).toBe(false);
+    });
+
+    it("returns null score when the target is Archived", () => {
+      const archived = option("arch", "Archived", []);
+      const ranking = rankOption({
+        target: archived,
+        activeOptions: [],
+        activeLog: [],
+        targetLog: [{ optionId: "arch", eatenOn: today - 3 }],
+        today,
+        archived: true,
+      });
+      expect(ranking.score).toBeNull();
+      expect(ranking.recencyDays).toBe(3);
+      expect(ranking.neverEaten).toBe(false);
+    });
+
+    it("derives Tag overdue from OVERDUE_THRESHOLD", () => {
+      const ramen = option("a", "Ramen", ["soup"]);
+      const pho = option("b", "Pho", ["soup"]);
+      const overdueEntries: RankLogEntry[] = [
+        { optionId: "a", eatenOn: today - OVERDUE_THRESHOLD },
+      ];
+      const ranking = rankOption({
+        target: pho,
+        activeOptions: [ramen, pho],
+        activeLog: overdueEntries,
+        targetLog: [],
+        today,
+      });
+      expect(ranking.tags[0].overdue).toBe(true);
     });
   });
 });

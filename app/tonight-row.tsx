@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { CAP } from "@/lib/ranking.config";
 import type { TonightRow as TonightRowData } from "@/lib/ranking";
 import {
@@ -91,9 +93,12 @@ export function TonightRow({ row, rank, variant = "tonight", aiReason }: Props) 
         {rank}
       </span>
       <div className="flex flex-1 flex-col gap-xs">
-        <span className="font-display text-name text-ink">
+        <Link
+          href={`/catalog/${row.option.id}`}
+          className="font-display text-name text-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+        >
           {row.option.name}
-        </span>
+        </Link>
         <RowChips row={row} />
         {hasAiReason ? (
           <p className="rounded-md bg-raised px-sm py-xs text-meta text-ink">

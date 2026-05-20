@@ -1,6 +1,6 @@
 # 13 — Option detail page: core, merged History, Option-name links
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -144,28 +144,32 @@ Tonight, and the Log alike.
 
 ## Acceptance criteria
 
-- [ ] `app/catalog/[id]/page.tsx` is a `force-dynamic` server component rendering a detail page for an active Option of either kind
-- [ ] A request for an id matching no `options` row, or a malformed id, renders Next's `notFound()`
-- [ ] The header shows a "Restaurant" / "Home meal" kind label above the Option name, carried by the meal-kind color channel
-- [ ] A "Recency" section renders `RowChips` — the per-Option Recency chip plus the Tag heatmap chips — fed from `rankOption`
-- [ ] A conditional "Details" `<dl>` shows notes, the `url` as a clickable link, and for a Restaurant the address, `phone` as a `tel:` link, and a Google Maps link; a Home meal omits the Restaurant-only fields
-- [ ] The page renders no Score number anywhere
-- [ ] `rankOption` is added to `lib/ranking.ts`, reusing the existing recency internals, and its result for an active Option matches that Option's `rankTonight` row over the same inputs
-- [ ] `lib/ranking.test.ts` covers `rankOption` — an active Option matches `rankTonight`, plus the never-eaten flag and `CAP` recency
-- [ ] `lib/dinner-grouping.ts` is a pure module providing `groupByDate`, `splitDinners`, `formatDinnerDate`, and `groupByDay`
-- [ ] `lib/dinner-grouping.test.ts` covers the today-boundary split, same-date grouping, a Rejection-only date forming a record, the upcoming/history ordering, and the date labels
-- [ ] The Log screen consumes `lib/dinner-grouping.ts`; its rendered behavior is unchanged
-- [ ] `EntryRow` / `EntryEditForm` are extracted into a shared `app/log/log-entry-row.tsx` used by both the Log screen and the detail page
-- [ ] The detail page has a single "History" section — one merged, date-grouped list interleaving the Option's Log entries and Rejections
-- [ ] Future-dated (Planned) groups render first, then realized history newest-first
-- [ ] Each date group reuses `EntryRow` for logged dinners and `RejectionRow` for Rejections under a `formatDinnerDate` header
-- [ ] An Option with no Log entries and no Rejections shows a quiet empty state
-- [ ] The Option name on a Catalog row links to `/catalog/[id]`
-- [ ] The Option name on a Tonight row (`app/tonight-row.tsx`) links to `/catalog/[id]`
-- [ ] The Option name on a Log entry row (`EntryRow` in `app/log/log-entry-row.tsx`) links to `/catalog/[id]`
+- [x] `app/catalog/[id]/page.tsx` is a `force-dynamic` server component rendering a detail page for an active Option of either kind
+- [x] A request for an id matching no `options` row, or a malformed id, renders Next's `notFound()`
+- [x] The header shows a "Restaurant" / "Home meal" kind label above the Option name, carried by the meal-kind color channel
+- [x] A "Recency" section renders `RowChips` — the per-Option Recency chip plus the Tag heatmap chips — fed from `rankOption`
+- [x] A conditional "Details" `<dl>` shows notes, the `url` as a clickable link, and for a Restaurant the address, `phone` as a `tel:` link, and a Google Maps link; a Home meal omits the Restaurant-only fields
+- [x] The page renders no Score number anywhere
+- [x] `rankOption` is added to `lib/ranking.ts`, reusing the existing recency internals, and its result for an active Option matches that Option's `rankTonight` row over the same inputs
+- [x] `lib/ranking.test.ts` covers `rankOption` — an active Option matches `rankTonight`, plus the never-eaten flag and `CAP` recency
+- [x] `lib/dinner-grouping.ts` is a pure module providing `groupByDate`, `splitDinners`, `formatDinnerDate`, and `groupByDay`
+- [x] `lib/dinner-grouping.test.ts` covers the today-boundary split, same-date grouping, a Rejection-only date forming a record, the upcoming/history ordering, and the date labels
+- [x] The Log screen consumes `lib/dinner-grouping.ts`; its rendered behavior is unchanged
+- [x] `EntryRow` / `EntryEditForm` are extracted into a shared `app/log/log-entry-row.tsx` used by both the Log screen and the detail page
+- [x] The detail page has a single "History" section — one merged, date-grouped list interleaving the Option's Log entries and Rejections
+- [x] Future-dated (Planned) groups render first, then realized history newest-first
+- [x] Each date group reuses `EntryRow` for logged dinners and `RejectionRow` for Rejections under a `formatDinnerDate` header
+- [x] An Option with no Log entries and no Rejections shows a quiet empty state
+- [x] The Option name on a Catalog row links to `/catalog/[id]`
+- [x] The Option name on a Tonight row (`app/tonight-row.tsx`) links to `/catalog/[id]`
+- [x] The Option name on a Log entry row (`EntryRow` in `app/log/log-entry-row.tsx`) links to `/catalog/[id]`
 - [ ] The Option name on a Rejection row (`RejectionRow` in `app/log/rejection-row.tsx`) links to `/catalog/[id]`
-- [ ] Each name link is visually distinct from the row's action controls, with a visible focus ring, and does not interfere with them
-- [ ] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
+- [x] Each name link is visually distinct from the row's action controls, with a visible focus ring, and does not interfere with them
+- [x] The full gate passes — `pnpm typecheck`, `lint`, `test`, `build`
+
+## Comments
+
+- Worker (ralph-run-3): shipped per the orchestrator's narrowed scope — `RejectionRow` does not exist yet (lands in ticket 10/14), so the Rejection-row link box stays unchecked and the detail page passes `[]` for rejections to `groupByDay`. `lib/dinner-grouping` is complete and tested for the Rejection-only-date case so a later ticket plugs in `getOptionRejections` + `RejectionRow` with no module changes. Old `app/log/log-day-grouping.ts` removed (only consumer was the Log screen, now on the shared module). Log screen's date headers now use the richer `Fri, May 16 · N days ago` form per spec — structural behavior unchanged.
 
 ## Blocked by
 

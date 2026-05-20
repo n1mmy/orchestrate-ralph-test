@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 
 import type { LogEntry, SelectableOption } from "@/db/queries";
@@ -140,10 +141,13 @@ export function LogEntryRow({ entry, options }: Props) {
       )}`}
     >
       <div className="flex flex-row items-center justify-between gap-md">
-        <span className="font-display text-name text-ink">
+        <Link
+          href={`/catalog/${entry.option.id}`}
+          className="font-display text-name text-ink underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ink"
+        >
           {entry.option.name}
           {entry.option.active ? "" : " (archived)"}
-        </span>
+        </Link>
         {mode === "idle" ? (
           <div className="flex flex-row gap-sm">
             {savedFlash ? (
