@@ -33,50 +33,59 @@ needs is in its ticket and the tracker documents listed above. The tickets
 were derived from an earlier reference build, but that build is not part of
 this repo and must not be sought out.
 
-## Build sequence (33 tickets, six phases)
+## Build sequence (15 tickets, five phases)
 
-The 33 tickets form a **dependency DAG**, not a linear chain. Each ticket's
+The 15 tickets form a **dependency DAG**, not a linear chain. Each ticket's
 `Blocked by` section names only the tickets it *genuinely* builds on — a shared
 module it extends, a schema migration it follows, a screen it modifies — so a
 ticket becomes eligible the moment every ticket it is blocked by is
 `Status: done`. The Ralph orchestrator can therefore run several tickets per
-wave; the critical path is ~10 levels deep, not 33.
+wave; the critical path is ~7 levels deep, not 15.
 
-The six phases below are a **narrative** grouping, not a build barrier — work
-crosses phase lines wherever the dependencies allow. In particular: Rejections
-(Phase 4) does not wait on AI search (Phase 3) — only ticket 21, which feeds
-Rejections *into* AI search, bridges them; the Option detail page (Phase 5)
-starts as soon as Phase 2 lands, independent of Phases 3–4; and the dated-
-Rejections foundation (ticket 28's `UNIQUE` migration) follows ticket 19
-directly rather than the whole detail-page phase. Within a phase the AI-search
-chain (14→15→16→17→18) and the detail-page page-file chain (22→23→24/25→26)
-remain mostly sequential because each ticket reworks the same module or screen
-file as its predecessor.
+The five phases below are a **narrative** grouping, not a build barrier — work
+crosses phase lines wherever the dependencies allow. In particular: the
+Option detail page (Phase 4) starts as soon as Phase 2 lands, independent of
+Phase 3; the AI snapshot extensions (ticket 11) bridge Phase 3 and the
+Rejections work (ticket 10) without serialising the rest of Phase 4; and the
+final Log day-grouping ticket (ticket 15) only unblocks once both the detail
+page (13/14) and the rejection-management server actions (12) are in place.
+Within Phase 1, the four post-Catalog tickets (04 Tags + import, 05 Places, 06
+Auth, 07 Tonight base) are all parallel — they unblock together the moment
+03 lands.
 
-**Phase 1 — v1, the core app (01–10).**
-Walking skeleton → Catalog CRUD → Tags → Tonight ranked list → pick=log + Log
-screen → tag filters → Google Places autofill → auth gate → data import →
-Dockerfile & deploy. At the end of phase 1 the app is shippable.
+**Phase 1 — v1, the core app (01–07).**
+Walking skeleton → Dockerfile & deploy → Options catalog CRUD → Tags + prior-
+version data import → Google Places autofill → shared-password auth gate →
+Tonight base (ranked list + pick=log + Log screen + tri-state tag filters).
+At the end of Phase 1 the app is shippable.
 
-**Phase 2 — Tonight decided mode (11–13).**
+**Phase 2 — Tonight decided mode (08).**
 Tonight becomes a two-mode screen: a ranked picker, and a "Tonight's dinner"
-decided view once an Option is Picked.
+decided view once an Option is Picked, with action buttons (Menu / Call /
+Recipe) and a Remove control on the decided block.
 
-**Phase 3 — AI search (14–18).**
+**Phase 3 — AI search and its rejection-aware snapshot (09, 11).**
 A search box on Tonight that re-ranks the Catalog by typed intent via an
-Anthropic model, additive and never the default.
+Anthropic model — built end-to-end across skeleton, failure model, result
+hardening, mode polish, and config/observability in ticket 09 — then extended
+in ticket 11 to feed Rejections and the future window into the snapshot.
 
-**Phase 4 — Rejections (19–21).**
-A reject affordance on every Tonight row; rejected Options are suppressed for
-the day and fed into AI search as a learning signal.
+**Phase 4 — Rejections, Tonight UI, and the Option detail page (10, 12, 13, 14).**
+A reject affordance on every Tonight row that suppresses rejected Options for
+the day (ticket 10, including the `UNIQUE(option_id, rejected_on)` constraint
+that follows the initial table); the Rejected-tonight disclosure and the
+rejection-management server actions (ticket 12); and the per-Option detail
+screen at `/catalog/[id]` — core route, identity, Recency, merged History
+section and Option-name links (ticket 13); Actions toolbar, Archived Options
+with Un-archive + Catalog disclosure, and Rejection rows in History with
+Bring-back parity (ticket 14).
 
-**Phase 5 — Option detail page (22–27).**
-A per-Option screen at `/catalog/[id]` showing everything about one Option, with
-every sensible control, plus reachable Archived Options.
-
-**Phase 6 — Dated Rejections (28–33).**
-Rejections become manually creatable, freely dated, and editable; the Log
-becomes the household's full nightly record.
+**Phase 5 — Log day grouping and full rejection management (15).**
+The Log becomes the household's full nightly record: a shared
+`groupByDay` extension over the dinner-grouping module interleaves Log entries
+and Rejections by date, the Log screen renders the result with a shared
+`RejectionRow`, and the Option detail page's merged History is reworked to use
+the same primitives — closing the loop on dated, editable Rejections.
 
 ## Build notes — easy-to-get-wrong points
 

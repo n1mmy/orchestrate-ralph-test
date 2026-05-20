@@ -1,4 +1,4 @@
-# 07 — Google Places autofill for Restaurants
+# 05 — Google Places autofill for Restaurants
 
 Status: ready-for-agent
 Type: AFK
@@ -72,4 +72,4 @@ integration — this ticket touches only the Restaurant form.
 
 ## Blocked by
 
-- 02 — Catalog: Options CRUD (the Restaurant form)
+- 03 — Options catalog: CRUD

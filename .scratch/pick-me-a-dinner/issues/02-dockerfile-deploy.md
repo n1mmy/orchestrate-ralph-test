@@ -1,4 +1,4 @@
-# 10 — Dockerfile, GHCR workflow, startup checks
+# 02 — Dockerfile, GHCR workflow, startup checks
 
 Status: ready-for-agent
 Type: AFK
@@ -68,4 +68,4 @@ carries placeholders only. The Postgres connection is plain (no
 
 ## Blocked by
 
-- 01 — Walking skeleton (needs migrations to exist)
+- 01 — Walking skeleton: scaffold, schema, design foundation

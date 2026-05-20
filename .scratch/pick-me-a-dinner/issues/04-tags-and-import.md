@@ -1,4 +1,4 @@
-# 09 — Prior-version data import script
+# 04 — Tags on Options + prior-version data import
 
 Status: ready-for-agent
 Type: AFK
@@ -12,6 +12,47 @@ Type: AFK
 This ticket is the complete, self-contained build spec — implement exactly what it describes, against the final shipped behavior of the app. There is no external reference repository or background PRD to open; everything needed is in this file and the linked tracker docs. Domain terms: [`../CONTEXT.md`](../CONTEXT.md). Visual system: [`../DESIGN.md`](../DESIGN.md).
 
 ## What to build
+
+Two tightly-coupled scopes that must ship together because the import script
+depends on the shared `normalizeTag` helper introduced by the tag-attach work,
+and the two call sites cannot drift.
+
+### Tags on Options
+
+Tag attachment on the Catalog Option form. The Household attaches Tags to an
+Option via the `TagInput` autocomplete token input (`app/catalog/tag-input.tsx`):
+typing filters the existing-Tag suggestions and offers a `Create "…"` row for
+free text; Enter, comma, or a click adds the Tag, Backspace on an empty field
+removes the last token. The component is an ARIA combobox — `role="combobox"`,
+`aria-expanded`, `aria-autocomplete="list"` over a `role="listbox"` of
+`role="option"` rows. There is no separate Tags-management screen — this token
+input is the only place Tags are created or changed. A Tag that ends up with no
+Options simply stops appearing anywhere; that is harmless and needs no cleanup.
+
+Introduce the shared `normalizeTag` helper (`lib/normalize-tag.ts`) — a small,
+*pure* function that returns `raw.trim().toLowerCase()`. Every Tag passes
+through it: `TagInput` normalizes on the way in so the tokens shown are already
+canonical, and the server action normalizes again before any DB write.
+`normalizeTag` is a *shared* helper because the import script (below) must
+normalize identically — the two call sites (the Catalog tag-attach path and the
+import script) cannot drift and bypass the `tags.lower(name)` unique index. A
+shared helper is the chosen module shape precisely because two call sites must
+agree.
+
+Tag persistence lives in `app/catalog/actions.ts` as `syncOptionTags(tx,
+optionId, rawTags)`, called inside the same `createOption` / `updateOption`
+transaction from ticket 03. It normalizes and dedupes the incoming Tag set
+(`new Set(rawTags.map(normalizeTag).filter(...))`), deletes the Option's
+existing `option_tags` rows, then re-inserts. Each Tag name is resolved to its
+row id by `resolveTagId(tx, name)`: an `insert(tags).onConflictDoNothing()`
+against the `lower(name)` unique index, falling back to a `select` — and
+retried once, because under a concurrent same-Tag insert the loser's first
+`select` can miss the winner's not-yet-committed row. So adding "Pasta" when
+"pasta" already exists reuses the existing row rather than duplicating it. Tag
+edits are not retroactive — that only matters once ranking exists (ticket 07),
+but the data model here must not assume otherwise.
+
+### Prior-version data import
 
 A **one-off script** — `scripts/import-prior-data.ts`, not an ongoing feature —
 that imports the prior version's real Catalog and Log history into the v1
@@ -55,6 +96,24 @@ script reads its input either from a JSON dump path (`argv[2]`) or, when
 
 ## Acceptance criteria
 
+### Tags on Options
+
+- [ ] The Catalog `OptionForm` has the `TagInput` autocomplete token input —
+      an ARIA combobox that suggests existing Tags and offers a `Create "…"`
+      row for free text
+- [ ] `normalizeTag` is a shared pure function that trims and lowercases; both
+      `TagInput` and the tag-attach server path (and the import script below)
+      call it
+- [ ] `syncOptionTags` runs inside the `createOption`/`updateOption`
+      transaction, normalizes + dedupes the Tag set, and `resolveTagId` reuses
+      an existing Tag for a case-insensitive match — adding "Pasta" when "pasta"
+      exists creates no duplicate `tags` row
+- [ ] Tags attach/detach via `option_tags` rows and persist across reloads
+- [ ] `lib/normalize-tag.test.ts` covers: trims, lowercases, leaves an
+      already-normal Tag unchanged
+
+### Prior-version data import
+
 - [ ] `mapPriorData` maps `Meal` / `Restaurant` / `Dinner` into `options` /
       `tags` / `option_tags` / `dinner_log` rows with fresh uuids and rewired
       `Dinner` FKs; an unresolvable FK throws before any DB write
@@ -73,4 +132,4 @@ script reads its input either from a JSON dump path (`argv[2]`) or, when
 
 ## Blocked by
 
-- 03 — Tags on Options (needs the shared `normalizeTag` helper)
+- 03 — Options catalog: CRUD

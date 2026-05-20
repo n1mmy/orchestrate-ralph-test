@@ -1,4 +1,4 @@
-# 02 — Catalog: Options CRUD
+# 03 — Options catalog: CRUD
 
 Status: ready-for-agent
 Type: AFK
@@ -15,8 +15,8 @@ This ticket is the complete, self-contained build spec — implement exactly wha
 
 The Catalog screen and its server actions — the first real vertical slice. The
 Household can add, edit, list, Archive, and hard-delete Options (Home meals and
-Restaurants), with manual data entry only (Google Places autofill is ticket 07;
-Tags are ticket 03).
+Restaurants), with manual data entry only (Google Places autofill is ticket 05;
+Tags are ticket 04).
 
 The `/catalog` route is `force-dynamic` and loads the active Catalog via a
 `getActiveCatalog()` query in `db/queries.ts` — `active = true` Options ordered
@@ -33,10 +33,10 @@ link. (v1 Catalog rows show only the name with Edit / Archive / Delete actions �
 the Option name being a link to `/catalog/[id]` is a later phase, so omit it.)
 
 The server actions in `app/catalog/actions.ts` are each wrapped in
-`authedAction` (built in ticket 08 — until then a thin pass-through is
+`authedAction` (built in ticket 06 — until then a thin pass-through is
 acceptable, but write the call site for it). `createOption(kind, values)` and
 `updateOption(id, kind, values)` both run the Option write inside a
-`db.transaction` so the Tag sync (ticket 03) commits atomically with it; both
+`db.transaction` so the Tag sync (ticket 04) commits atomically with it; both
 reject a blank name with `{ ok: false, error: "Enter a name" }`. They return the
 shared `ActionResult` type (`lib/action-result.ts`). `archiveOption(id)` sets
 `active = false` — the Option leaves the default Catalog list and Tonight, but
@@ -78,4 +78,4 @@ with a visible `<label>`.
 
 ## Blocked by
 
-- 01 — Walking skeleton (schema, scaffold, design tokens)
+- 01 — Walking skeleton: scaffold, schema, design foundation

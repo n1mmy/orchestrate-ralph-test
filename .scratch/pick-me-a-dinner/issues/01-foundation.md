@@ -58,7 +58,7 @@ variable on `<html>` in `app/layout.tsx` — the `--text-*` / `--weight-*` sizes
 the 4px-base spacing scale, the `control`/`input`/`badge` radii, motion
 durations, and the `.column` primitive (max-width 560px phone / 700px desktop,
 720px `desktop` breakpoint). This ticket lays only the *token* foundation;
-`lib/recency-color.ts` and the per-row meal-kind bar are built in ticket 04.
+`lib/recency-color.ts` and the per-row meal-kind bar are built in ticket 07.
 
 Add `.env.example` with placeholders only for `DATABASE_URL`, `APP_PASSWORD`,
 `APP_SECRET`, `APP_TZ`, `GOOGLE_PLACES_API_KEY` (optional). `drizzle.config.ts`

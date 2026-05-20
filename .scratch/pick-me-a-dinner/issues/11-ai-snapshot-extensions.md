@@ -1,4 +1,4 @@
-# 21 — Feed AI search
+# 11 — AI snapshot extensions: rejections feed + future window
 
 Status: ready-for-agent
 Type: AFK
@@ -13,7 +13,11 @@ This ticket is the complete, self-contained build spec — implement exactly wha
 
 ## What to build
 
-Make the Household's Rejections shape future **AI searches** (ADR-0006). Where ticket 19 suppressed a rejected Option from the deterministic list, this slice carries every Rejection into the AI search snapshot — both as the AI-result side of suppression and as a learning signal the model reasons over.
+Two extensions to the AI search snapshot that build on the end-to-end AI search of ticket 09 and the Rejections work of ticket 10: feed every Rejection (with full history) into the snapshot as both the AI-result side of suppression and a learning signal, then widen the Log and Rejection windows so the snapshot also carries the near future (Planned dinners and future-dated Rejections).
+
+### Feed Rejections into AI search
+
+Make the Household's Rejections shape future **AI searches** (ADR-0006). Where ticket 10 suppressed a rejected Option from the deterministic list, this slice carries every Rejection into the AI search snapshot — both as the AI-result side of suppression and as a learning signal the model reasons over.
 
 Add a pure `lib/rejections.ts` module — no I/O, the unit-test target. It exports a `RejectionRow` input type (`optionId`, `reason: string | null`, `rejectedOn` SQL date string, plus the Option's `optionName` / `kind` / `tags` carried for snapshot readability) and a `partitionRejections(rows, today, indexByOptionId)` function. `indexByOptionId` is a `ReadonlyMap<string, number>` — the snapshot-number map keyed by Option UUID — because the snapshot refers to every Option by a small integer, never the UUID; the partition is built around that index map. `partitionRejections` produces a `PartitionedRejections`: a **`suppressedToday`** `Set<string>` of the Option ids whose `rejectedOn` equals today (and nothing from any other day), and a **`block`** `RejectionsBlock` with two groups — **`rejectedTonight`** (rows dated exactly today) and **`notTodayRejections`** (every other row — past-dated *and* future-dated). The boundary is exact equality on the date string. Each group is shaped into `SnapshotRejection` entries: the `reason` wrapped in `<household-text>` delimiters via `delimitNullable` (a `null` reason carried through as `null`, never an empty delimiter — an unexplained Rejection is honest weak data), the `date` formatted with weekday via `formatDateWithWeekday` (the ADR-0005 date-with-weekday format), the Option named by `delimit` and referred to by its snapshot integer (`indexByOptionId.get(...)!`), `kind` and delimited `tags` carried through, and each group sorted newest `rejectedOn` first by a stable sort — parallel to the Log block. Reuse the `delimit` / `delimitNullable` / `formatDateWithWeekday` helpers from `lib/snapshot-format.ts`. `lib/rejections.ts` operates only on what it is given — Rejections of Archived Options are excluded upstream in the query, mirroring how the Log already excludes Archived Options' entries.
 
@@ -21,11 +25,25 @@ Extend the AI search snapshot in `lib/ai-search.ts`. `ModelSnapshot` gains a `re
 
 Extend `buildSystemPrompt` / the system prompt text: describe the Rejections block as the Household's record of Options turned down and why, with its two groups — "Rejected tonight" Options deliberately left out of the Catalog and **not** candidates to return (but their reasons may still inform the ranking of other Options), and "Other rejections" still candidates. Instruct the model to read each reason together with its date and how often it recurs and decide **for itself** which Rejections are standing ("closed on Sundays") and which were one-off ("too heavy tonight") — ADR-0006 — and that a Rejection with no reason is a light "passed on this" signal, nothing more. The block is raw dated history, consistent with ADR-0005 — no pre-digested signal; the model reasons over it the way it reasons over the Log.
 
-Add a `getRejections()` query to `db/queries.ts`: every `rejections` row joined to its Option, returning the `RejectionRow` shape (`optionId`, `reason`, `rejectedOn`, `optionName`, `kind`, `tags`), for **active** Options only, ordered newest `rejected_on` first with `created_at` breaking a same-day tie. This is a separate query from ticket 19's `getTodayRejections` — the today-only subset feeds suppression and the disclosure, while `getRejections` feeds the full-history snapshot; the AI path partitions the full result with `lib/rejections.ts`. Wire it into the `aiSearchAction` server action in `app/tonight-actions.ts`: load `getRejections()` alongside `getTonightData` and `getFullLogForSnapshot`, and pass the rows through to `buildSnapshot` as its `rejections` input. `buildSnapshot` then handles candidate-drop and the block; no change to `app/page.tsx` is needed for the snapshot.
+Add a `getRejections()` query to `db/queries.ts`: every `rejections` row joined to its Option, returning the `RejectionRow` shape (`optionId`, `reason`, `rejectedOn`, `optionName`, `kind`, `tags`), for **active** Options only, ordered newest `rejected_on` first with `created_at` breaking a same-day tie. This is a separate query from ticket 10's `getTodayRejections` — the today-only subset feeds suppression and the disclosure, while `getRejections` feeds the full-history snapshot; the AI path partitions the full result with `lib/rejections.ts`. Wire it into the `aiSearchAction` server action in `app/tonight-actions.ts`: load `getRejections()` alongside `getTonightData` and `getFullLogForSnapshot`, and pass the rows through to `buildSnapshot` as its `rejections` input. `buildSnapshot` then handles candidate-drop and the block; no change to `app/page.tsx` is needed for the snapshot.
 
 Test per the source PRD: full Vitest unit coverage of `lib/rejections.ts` in a new `lib/rejections.test.ts` (partition on the exact today boundary including a future-dated Planned row landing in `notTodayRejections`; the `suppressedToday` set being exactly today's Option ids and excluding future-dated rows; the snapshot block's delimited reasons, delimiter-substring stripping, weekday dates, newest-first ordering, `null` reason carried as `null`, delimited name and tags, the snapshot number carried through), modelled on `lib/tonight-filter.test.ts` and `lib/tonights-dinner.test.ts` with hand-built fixtures. Extend `lib/ai-search.test.ts` in place with a `buildSnapshot — Rejections` block: today's-rejected Options dropped from `options` (leaving the number gap, absent from `idByIndex`), an earlier-rejected Option still a candidate, a future-dated Planned rejection in `notTodayRejections` with its Option still a candidate, the block carrying the `rejectedTonight` and `notTodayRejections` groups with delimited reasons and weekday dates, and a null reason carried as null. No live Anthropic call is made in a test; the thin server actions get no dedicated tests, and `app/tonight-screen.test.tsx` is left as-is.
 
+### Include the future in the AI snapshot
+
+Widen the **AI search** snapshot so the model sees the Household's near future — Planned dinners and Planned rejections — not only past history. This extends ADR-0005: the snapshot is no longer strictly past history; it carries near-future plans, and the model, given today's date, tells plan from history itself.
+
+Add `getFullLogForSnapshot()` to `db/queries.ts`: every `dinner_log` row of an **active** Option, **regardless of date** — past entries and future-dated ones (Planned dinners) alike — selected as `{ optionId, eatenOn, note }` (the existing `TonightLogRow` shape). It is the AI-snapshot counterpart of `getTonightData`'s `logEntries`, which filters `eaten_on <= today` for the deterministic ranking. Only active Options are joined, mirroring how `getTonightData` already excludes Archived Options' Log rows from AI search.
+
+Rewire `app/tonight-actions.ts` (`aiSearchAction`): it currently borrows the non-future `logEntries` from `getTonightData`. Change it to `Promise.all` over `getTonightData(todaySql)` (still read for the active Catalog `options`), `getFullLogForSnapshot()`, and `getRejections()`, and feed the full Log into `buildSnapshot`. The deterministic ranking keeps its own non-future Log from `getTonightData`; `lib/ranking.ts` and the Score (ADR-0003) are untouched, and only the AI path sees the future.
+
+`buildSnapshot` in `lib/ai-search.ts` already accepts a `SnapshotLogEntry` of any date and sorts the snapshot `log` newest-`eatenOn`-first, so a future-dated entry surfaces at the top carrying its real weekday-formatted date — confirm this holds. The Rejections block keeps **two** groups — `rejectedTonight` (Options removed from the candidate set) and `notTodayRejections` (Options still candidates). `partitionRejections` already routes any non-today row — past *or* future — into `notTodayRejections` and keeps the `suppressedToday` set at `rejectedOn === today` only; no third group is added. The not-today group's snapshot type field, the `ModelSnapshot.rejections` doc, and the system prompt must read date-neutrally — the prompt already names the group "Other rejections", states the Log and Rejections may include future-dated rows, and tells the model to compare each row's date against today; keep that wording (a stale "Earlier rejections" label would misdescribe a future row). `getRejections` already returns every Rejection of an active Option with no date filter, so future-dated rows reach the snapshot once they exist — no change there.
+
+Extend `lib/rejections.test.ts` and `lib/ai-search.test.ts` for the future-dated behavior (both already carry such cases — confirm and keep them): a future-dated Rejection lands in `notTodayRejections` carrying its real date and is **not** in `suppressedToday`; a future-dated Log entry appears in the snapshot `log` with its date; an Option whose only Rejection is future-dated stays in the candidate `options`. Framework: Vitest; no live Anthropic call is made in any test.
+
 ## Acceptance criteria
+
+### Feed Rejections into AI search
 
 - [ ] A pure `lib/rejections.ts` exports `RejectionRow`, `RejectionsBlock`, `PartitionedRejections`, and `partitionRejections(rows, today, indexByOptionId)`
 - [ ] `partitionRejections` partitions rows into `rejectedTonight` (dated exactly today) and `notTodayRejections` (every other row, past and future) on an exact date-string boundary
@@ -40,11 +58,20 @@ Test per the source PRD: full Vitest unit coverage of `lib/rejections.ts` in a n
 - [ ] Rejections of Archived Options are excluded from the snapshot (by `getRejections`'s active-only join)
 - [ ] A Rejection with no reason is still carried into the snapshot
 - [ ] New unit tests cover `lib/rejections.ts` in full; `lib/ai-search.test.ts` is extended for the candidate-drop and the Rejections block
+
+### Include the future in the AI snapshot
+
+- [ ] `db/queries.ts` exports `getFullLogForSnapshot()` returning every `dinner_log` row of an active Option, all dates, as `{ optionId, eatenOn, note }`
+- [ ] `aiSearchAction` feeds the snapshot from `getFullLogForSnapshot()`, not from `getTonightData`'s non-future `logEntries`; `getTonightData` is still read for the active Catalog `options`
+- [ ] `buildSnapshot`'s snapshot `log` includes future-dated entries, newest-`eatenOn`-first, each with its real weekday-formatted date
+- [ ] The deterministic ranking (`lib/ranking.ts`) and `getTonightData`'s `eaten_on <= today` filter are unchanged — only the AI path sees the future
+- [ ] `partitionRejections` keeps two groups; `notTodayRejections` carries past *and* future-dated rows; `suppressedToday` stays `rejectedOn === today` only
+- [ ] The not-today group's snapshot type field, the `ModelSnapshot.rejections` doc, and the system prompt read date-neutrally and state rows may be future-dated
+- [ ] An Option whose only Rejection is future-dated stays in the candidate `options`
+- [ ] `lib/rejections.test.ts` and `lib/ai-search.test.ts` cover the future-dated Rejection, future-dated Log entry, and future-only-rejection-stays-candidate cases; no live Anthropic call in any test
 - [ ] `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build` all green
 
 ## Blocked by
 
-- 17 — AI search: mode polish, habit reasoning, and accessibility (extends
-  `buildSnapshot` and `buildSystemPrompt`)
-- 19 — Reject and suppress (needs the `rejections` table this snapshot
-  block reasons over)
+- 09 — AI search: end-to-end
+- 10 — Rejections: reject/suppress + uniqueness

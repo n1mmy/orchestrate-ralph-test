@@ -1,4 +1,4 @@
-# 08 — Shared-password auth gate
+# 06 — Shared-password auth gate
 
 Status: ready-for-agent
 Type: AFK
@@ -75,5 +75,4 @@ terminating ingress proxy.
 
 ## Blocked by
 
-- 02 — Catalog: Options CRUD (upgrades the thin `lib/authed-action.ts`
-  pass-through and uses `lib/action-result.ts`, both introduced there)
+- 03 — Options catalog: CRUD
