@@ -250,6 +250,85 @@ describe("ranking", () => {
       expect(ranking.neverEaten).toBe(false);
     });
 
+    it("Archived target absent from activeOptions still computes recencyDays and neverEaten from targetLog", () => {
+      // The Archived `target` is not in `activeOptions` — its own Log is
+      // still the source of its per-Option recency chip. `score: null`
+      // because the Option is no longer ranked.
+      const archived = option("arch", "Archived", ["soup"]);
+      const ramen = option("a", "Ramen", ["soup"]);
+      const activeOptions: RankOption[] = [ramen];
+      const activeLog: RankLogEntry[] = [
+        { optionId: "a", eatenOn: today - 4 },
+      ];
+      const targetLog: RankLogEntry[] = [
+        { optionId: "arch", eatenOn: today - 7 },
+      ];
+
+      const ranking = rankOption({
+        target: archived,
+        activeOptions,
+        activeLog,
+        targetLog,
+        today,
+        archived: true,
+      });
+
+      expect(ranking.score).toBeNull();
+      // recencyDays / neverEaten still resolved from `targetLog`.
+      expect(ranking.recencyDays).toBe(7);
+      expect(ranking.neverEaten).toBe(false);
+    });
+
+    it("Archived never-eaten target still flags neverEaten and CAP recency", () => {
+      const archived = option("arch", "Archived", []);
+      const ranking = rankOption({
+        target: archived,
+        activeOptions: [],
+        activeLog: [],
+        targetLog: [],
+        today,
+        archived: true,
+      });
+      expect(ranking.score).toBeNull();
+      expect(ranking.neverEaten).toBe(true);
+      expect(ranking.recencyDays).toBe(CAP);
+    });
+
+    it("per-Tag recency counts only active carriers — Archived target's own Log does not move its Tag chips", () => {
+      // The Archived `target` carries Soup; only the Archived Option has
+      // ever been eaten with Soup. Because per-Tag recency reads from
+      // active carriers only, the Soup chip stays at CAP — the Archived
+      // Option's own Log entries do not move its own Tag chip.
+      const archived = option("arch", "Archived", ["soup"]);
+      const burger = option("c", "Burger", ["meat"]);
+      const activeOptions: RankOption[] = [burger];
+      // Only the Archived Option has Soup history; no active Soup carrier.
+      const activeLog: RankLogEntry[] = [
+        { optionId: "c", eatenOn: today - 2 },
+      ];
+      const targetLog: RankLogEntry[] = [
+        { optionId: "arch", eatenOn: today - 1 },
+      ];
+
+      const ranking = rankOption({
+        target: archived,
+        activeOptions,
+        activeLog,
+        targetLog,
+        today,
+        archived: true,
+      });
+
+      // Per-Option recency comes from `targetLog` — recent.
+      expect(ranking.recencyDays).toBe(1);
+      // Per-Tag recency comes from active carriers — no active Soup
+      // carrier has been eaten, so the Soup chip is at CAP.
+      expect(ranking.tags).toHaveLength(1);
+      expect(ranking.tags[0].name).toBe("soup");
+      expect(ranking.tags[0].days).toBe(CAP);
+      expect(ranking.tags[0].neverEaten).toBe(true);
+    });
+
     it("derives Tag overdue from OVERDUE_THRESHOLD", () => {
       const ramen = option("a", "Ramen", ["soup"]);
       const pho = option("b", "Pho", ["soup"]);

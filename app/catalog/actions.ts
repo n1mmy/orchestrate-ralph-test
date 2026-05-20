@@ -39,6 +39,19 @@ function normalizeName(raw: string): string {
   return raw.trim();
 }
 
+/**
+ * Revalidate every surface that names an Option's identity. The Catalog
+ * lists Options by name; the Option detail page renders the same fields
+ * deeper. A control behaves identically wherever it is invoked
+ * (ADR-0007), so any Option mutation marks both stale. The wildcard
+ * `revalidatePath("/catalog/[id]", "page")` marks every Option's detail
+ * page without naming the id explicitly.
+ */
+function revalidateCatalog(): void {
+  revalidatePath("/catalog");
+  revalidatePath("/catalog/[id]", "page");
+}
+
 function blankString(raw: string | null | undefined): string | null {
   if (raw == null) return null;
   const trimmed = raw.trim();
@@ -171,7 +184,7 @@ export const updateOption = authedAction(
         .where(eq(options.id, id));
       await syncOptionTags(tx, id, values.tags);
     });
-    revalidatePath("/catalog");
+    revalidateCatalog();
     return { ok: true };
   },
 );
@@ -179,7 +192,22 @@ export const updateOption = authedAction(
 export const archiveOption = authedAction(
   async (id: string): Promise<ActionResult> => {
     await db.update(options).set({ active: false }).where(eq(options.id, id));
-    revalidatePath("/catalog");
+    revalidateCatalog();
+    return { ok: true };
+  },
+);
+
+/**
+ * Restore an Archived Option to active. Mirrors `archiveOption` — a thin
+ * authedAction DB write that flips `active` back to `true` and revalidates
+ * the same Catalog surfaces. Benign by design: the detail page's
+ * "Un-archive" affordance runs this in one tap because the worst it can
+ * do is restore an Option the Household had previously hidden.
+ */
+export const unarchiveOption = authedAction(
+  async (id: string): Promise<ActionResult> => {
+    await db.update(options).set({ active: true }).where(eq(options.id, id));
+    revalidateCatalog();
     return { ok: true };
   },
 );
@@ -195,7 +223,7 @@ export const deleteOption = authedAction(
       }
       throw error;
     }
-    revalidatePath("/catalog");
+    revalidateCatalog();
     return { ok: true };
   },
 );

@@ -496,6 +496,22 @@ export async function getOptionLog(optionId: string): Promise<LogEntry[]> {
  * doesn't need ids today, but `rankOption`-driven Tag chips only need
  * the names, so the simpler `getAllTagNames` is preferred for that path.
  */
+/**
+ * Archived (`active = false`) Options as `{ id, name }` for the Catalog
+ * disclosure. Sorted by name. Active Catalog isn't touched — this is the
+ * only path that surfaces Archived Options back to the member after they
+ * disappear from the active Catalog.
+ */
+export type ArchivedOption = { id: string; name: string };
+
+export async function getArchivedOptions(): Promise<ArchivedOption[]> {
+  return db
+    .select({ id: options.id, name: options.name })
+    .from(options)
+    .where(eq(options.active, false))
+    .orderBy(asc(options.name));
+}
+
 export type TagRow = { id: string; name: string };
 
 export async function getAllTags(): Promise<TagRow[]> {
