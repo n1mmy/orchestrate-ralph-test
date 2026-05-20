@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.github
+.scratch
+.claude
+.ralph
+test
+**/*.test.ts
+**/*.test.tsx
+.env
+.env.local
+README.md
+docs
