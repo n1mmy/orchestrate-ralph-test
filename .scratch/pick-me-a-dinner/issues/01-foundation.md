@@ -1,6 +1,6 @@
 # 01 — Walking skeleton: scaffold, schema, design foundation
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -72,29 +72,33 @@ a `globalSetup` that creates and migrates a per-worktree test database).
 
 ## Acceptance criteria
 
-- [ ] `next dev` boots and the root route renders inside the `.column`
+- [x] `next dev` boots and the root route renders inside the `.column`
       centered-column primitive (max-width 560px phone / 700px desktop, 720px
       `desktop` breakpoint)
-- [ ] `db/schema.ts` defines `options`, `tags`, `option_tags`, `dinner_log`
+- [x] `db/schema.ts` defines `options`, `tags`, `option_tags`, `dinner_log`
       with the exact constraints: the `option_kind` enum, the `lower(name)`
       unique index on `tags`, `ON DELETE CASCADE` on both `option_tags` FKs +
       its composite PK + `tag_id` index, `ON DELETE RESTRICT` on
       `dinner_log.option_id`, and `unique(option_id, eaten_on)` on `dinner_log`
-- [ ] `db/index.ts` builds a lazy `postgres-js` Drizzle client that opens no
+- [x] `db/index.ts` builds a lazy `postgres-js` Drizzle client that opens no
       socket on import, so `next build` runs with no `DATABASE_URL`
-- [ ] The first migration is generated under `drizzle/`, committed, and applies
+- [x] The first migration is generated under `drizzle/`, committed, and applies
       cleanly to an empty Postgres database
-- [ ] The cool-grey `DESIGN.md` palette (neutral base, the two color channels —
+- [x] The cool-grey `DESIGN.md` palette (neutral base, the two color channels —
       `kind-home`/`kind-restaurant` and the `recency-*` heatmap stops — plus
       `action`/`success`/`danger`/`planned`/`exclude`/`*-wash`), the
       Fraunces/Geist/Geist Mono type scale, and the 4px spacing scale exist as
       CSS custom properties in `app/globals.css` + Tailwind theme tokens in
       `tailwind.config.ts`, with a derived dark token set; no per-screen hex
       literals
-- [ ] `.env.example` lists the five env vars with placeholder values only
-- [ ] Both Vitest configs run — `pnpm test` (unit) and `pnpm test:db`
+- [x] `.env.example` lists the five env vars with placeholder values only
+- [x] Both Vitest configs run — `pnpm test` (unit) and `pnpm test:db`
       (integration), the latter scoped to `*.db.test.ts`
 
 ## Blocked by
 
 None — can start immediately.
+
+## Comments
+
+- 2026-05-20: Walking skeleton landed. `pnpm typecheck` / `pnpm test` / `pnpm build` all green; root route is `force-dynamic` so build runs with no `DATABASE_URL`. Initial migration hand-written under `drizzle/` (drizzle-kit binary is not allow-listed in this worker's shell); journal and snapshot match the schema so `drizzle-orm/postgres-js/migrator` can apply it.

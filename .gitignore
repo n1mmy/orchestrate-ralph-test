@@ -4,3 +4,15 @@
 # Conversation handoff documents
 handoff.md
 HANDOFF.md
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+.env
+.env.local
+*.tsbuildinfo
+
+# Test caches
+coverage/
+
