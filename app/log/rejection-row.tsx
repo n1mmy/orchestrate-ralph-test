@@ -2,8 +2,26 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { deleteRejection, updateRejection } from "../rejection-actions";
-import type { LogOptionChoice, LogRejectionRow } from "@/db/queries";
+import {
+  createRejection,
+  deleteRejection,
+  updateRejection,
+} from "../rejection-actions";
+import type {
+  LogOptionChoice,
+  LogRejectionRow,
+  OptionChoice,
+} from "@/db/queries";
+
+/**
+ * The shape of an Option choice the `RejectionForm` body's `<select>` knows
+ * how to render. The Rejection-edit path on `RejectionRow` passes
+ * `LogOptionChoice` (carrying `active` so the form suffixes an Archived
+ * Option's name with " (archived)"); the new `AddRejectionForm` accepts the
+ * leaner `OptionChoice` the Log page loads (no `active` field, since the
+ * add-form does not render an "Archived" badge today).
+ */
+type RejectionOptionChoice = LogOptionChoice | OptionChoice;
 
 /**
  * One Rejection row, with inline edit and inline-confirm delete (§17). The
@@ -162,7 +180,7 @@ export function RejectionForm({
   initialOptionId: string;
   initialRejectedOn: string;
   initialReason: string;
-  optionChoices: LogOptionChoice[];
+  optionChoices: RejectionOptionChoice[];
   submitLabel: string;
   pendingLabel: string;
   onSubmit: (values: {
@@ -211,7 +229,7 @@ export function RejectionForm({
               .map((opt) => (
                 <option key={opt.id} value={opt.id}>
                   {opt.name}
-                  {opt.active ? "" : " (archived)"}
+                  {"active" in opt && !opt.active ? " (archived)" : ""}
                 </option>
               ))}
           </optgroup>
@@ -221,7 +239,7 @@ export function RejectionForm({
               .map((opt) => (
                 <option key={opt.id} value={opt.id}>
                   {opt.name}
-                  {opt.active ? "" : " (archived)"}
+                  {"active" in opt && !opt.active ? " (archived)" : ""}
                 </option>
               ))}
           </optgroup>
@@ -268,6 +286,56 @@ export function RejectionForm({
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * The "+ Add a rejection" inline form. The Log screen renders it twice — once
+ * from `TopAddControls` at the top with `defaultDate` set to today, and again
+ * inside each `DayGroup` with the date pre-filled to that group's date so the
+ * Household never re-types a date it is already looking at. Backed by
+ * `createRejection`; `onSaved` fires only when the action returns `ok`, and
+ * the caller closes the form. A duplicate `(option_id, rejected_on)` or a
+ * stale Option surfaces as the action's inline `error` under the date field
+ * (`role="alert"`) — never flashed as success.
+ *
+ * Suppression of an Option from Tonight when a Rejection's date is today
+ * falls out of the date rule with no new client code: `createRejection`
+ * revalidates `/`, so the Tonight list refreshes after the write.
+ */
+export function AddRejectionForm({
+  optionChoices,
+  defaultDate,
+  onCancel,
+  onSaved,
+}: {
+  optionChoices: OptionChoice[];
+  defaultDate: string;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const initialOptionId = optionChoices[0]?.id ?? "";
+  if (initialOptionId === "") {
+    return (
+      <p className="text-meta text-muted">
+        Add an Option to the Catalog first → /catalog
+      </p>
+    );
+  }
+  return (
+    <RejectionForm
+      initialOptionId={initialOptionId}
+      initialRejectedOn={defaultDate}
+      initialReason=""
+      optionChoices={optionChoices}
+      submitLabel="Add"
+      pendingLabel="Saving…"
+      onSubmit={async (values) =>
+        createRejection(values.optionId, values.rejectedOn, values.reason)
+      }
+      onCancel={onCancel}
+      onSaved={onSaved}
+    />
   );
 }
 

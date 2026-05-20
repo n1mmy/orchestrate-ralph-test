@@ -1,71 +1,85 @@
+"use client";
+
+import { useState } from "react";
 import { AddDinnerForm } from "./add-dinner-form";
 import { LogEntryRow } from "./log-entry-row";
-import {
-  formatDinnerDate,
-  groupByDate,
-  splitDinners,
+import { AddRejectionForm, RejectionRow } from "./rejection-row";
+import { TopAddControls } from "./top-add-controls";
+import { formatDinnerDate, groupByDay } from "@/lib/dinner-grouping";
+import type {
+  DayRecord,
 } from "@/lib/dinner-grouping";
-import type { LogEntry, LogOptionChoice } from "@/db/queries";
+import type {
+  LogEntry,
+  LogOptionChoice,
+  LogRejectionRow,
+  OptionChoice,
+} from "@/db/queries";
 
 /**
- * The Log screen. Two sections, both grouped by date (a Dinner is "one or
- * more Log entries on a date" — CONTEXT.md):
+ * The Log screen — the Household's full nightly record. Two sections:
  *
- * - **Upcoming** (top, capped) — future-dated entries (Planned dinners),
- *   soonest first. The cap keeps a long Planned queue from burying today's
- *   history.
- * - **History** (below) — past + today entries, reverse-chronological. A date
- *   with more than one entry renders as one Dinner under one date header.
+ * - **Upcoming** (top, capped at `UPCOMING_CAP`) — future-dated `DayGroup`s
+ *   (Planned dinners and Planned rejections), soonest first. A "+N more
+ *   planned" line follows when the cap bites.
+ * - **History** (below) — past + today, newest-first. A date with both a
+ *   logged Dinner and a Rejection collapses under one date header (Log
+ *   entries first, then Rejections). A Rejection-only date still forms its
+ *   own group so the Household sees "we turned this down on Thursday" with
+ *   nothing eaten.
  *
- * The "+ Add a dinner" form sits at the top of the screen so the secondary
- * "log another date" path is one tap away, the same way Pick is one tap away
- * on Tonight.
+ * Two top-of-Log add controls — "+ Add a dinner" and "+ Add a rejection" —
+ * each one direct action with no mode toggle (`TopAddControls`). Each
+ * `DayGroup` also offers per-date "+ Dinner" and "+ Rejection" buttons that
+ * open the same inline forms with `defaultDate` pre-filled to that group's
+ * date, so the Household never re-types a date it is already looking at.
  *
- * §17 empty state: with no entries at all, copy nudges the Household toward
- * Tonight ("pick one on Tonight →"). Editing and deleting are per-row,
- * inline — see `LogEntryRow`.
+ * Grouping lives in `lib/dinner-grouping.ts` (the same `groupByDay` the
+ * Option detail page's merged History section consumes), so both views build
+ * their per-date buckets the same way.
  *
- * The cap on Upcoming is high enough to comfortably show a normal week or
- * two of planning. Once the Household has more than that planned, the strip
- * truncates with a small remainder count rather than scrolling forever.
- *
- * Grouping and the date label live in `lib/dinner-grouping.ts` — the same
- * module the Option detail page's merged History section consumes, so both
- * views build their per-date buckets the same way.
+ * §17 empty state: with no entries and no Rejections at all, copy nudges the
+ * Household toward Tonight ("pick one on Tonight →"). A Log with Rejections
+ * but no entries is not empty — the Rejections render and the empty line
+ * stays hidden.
  */
-const UPCOMING_CAP = 14;
+const UPCOMING_CAP = 5;
 
 export function LogScreen({
   entries,
+  rejections,
   optionChoices,
+  rejectionOptionChoices,
   todaySql,
 }: {
   entries: LogEntry[];
+  rejections: LogRejectionRow[];
   optionChoices: LogOptionChoice[];
+  rejectionOptionChoices: OptionChoice[];
   todaySql: string;
 }) {
-  // `splitDinners` preserves input order within each bucket. The query
-  // returns the entries newest-first, which is the order History needs; for
-  // Upcoming the Household wants soonest-first, so we re-sort ascending.
-  const split = splitDinners(entries, (entry) => entry.eatenOn, todaySql);
-  const upcoming = [...split.upcoming].sort((a, b) =>
-    a.eatenOn.localeCompare(b.eatenOn),
-  );
-  const history = split.history;
+  const { upcoming, history } = groupByDay({
+    entries,
+    rejections,
+    todaySql,
+  });
   const upcomingShown = upcoming.slice(0, UPCOMING_CAP);
   const upcomingHidden = upcoming.length - upcomingShown.length;
 
-  const upcomingGroups = groupByDate(upcomingShown, (e) => e.eatenOn);
-  const historyGroups = groupByDate(history, (e) => e.eatenOn);
-
-  const empty = entries.length === 0;
+  const empty = entries.length === 0 && rejections.length === 0;
+  const showHistoryHeading =
+    upcomingShown.length > 0 && history.length > 0;
 
   return (
     <main className="column">
       <h1 className="font-display text-h1 font-semibold">Log</h1>
 
       <section className="py-md">
-        <AddDinnerForm optionChoices={optionChoices} todaySql={todaySql} />
+        <TopAddControls
+          optionChoices={optionChoices}
+          rejectionOptionChoices={rejectionOptionChoices}
+          todaySql={todaySql}
+        />
       </section>
 
       {empty ? (
@@ -74,43 +88,45 @@ export function LogScreen({
         </p>
       ) : null}
 
-      {upcomingGroups.length > 0 ? (
+      {upcomingShown.length > 0 ? (
         <section className="py-md">
           <h2 className="text-meta font-semibold uppercase tracking-wide text-planned">
             Upcoming
           </h2>
           <ol className="flex flex-col">
-            {upcomingGroups.map((group) => (
-              <DateGroup
-                key={group.date}
-                date={group.date}
-                entries={group.items}
+            {upcomingShown.map((day) => (
+              <DayGroup
+                key={day.date}
+                day={day}
                 todaySql={todaySql}
                 optionChoices={optionChoices}
+                rejectionOptionChoices={rejectionOptionChoices}
               />
             ))}
           </ol>
           {upcomingHidden > 0 ? (
             <p className="pt-xs text-meta text-muted">
-              +{upcomingHidden} more upcoming
+              +{upcomingHidden} more planned
             </p>
           ) : null}
         </section>
       ) : null}
 
-      {historyGroups.length > 0 ? (
+      {history.length > 0 ? (
         <section className="py-md">
-          <h2 className="text-meta font-semibold uppercase tracking-wide text-muted">
-            History
-          </h2>
+          {showHistoryHeading ? (
+            <h2 className="text-meta font-semibold uppercase tracking-wide text-muted">
+              History
+            </h2>
+          ) : null}
           <ol className="flex flex-col">
-            {historyGroups.map((group) => (
-              <DateGroup
-                key={group.date}
-                date={group.date}
-                entries={group.items}
+            {history.map((day) => (
+              <DayGroup
+                key={day.date}
+                day={day}
                 todaySql={todaySql}
                 optionChoices={optionChoices}
+                rejectionOptionChoices={rejectionOptionChoices}
               />
             ))}
           </ol>
@@ -120,31 +136,82 @@ export function LogScreen({
   );
 }
 
-function DateGroup({
-  date,
-  entries,
+type AddOpen = "none" | "dinner" | "rejection";
+
+function DayGroup({
+  day,
   todaySql,
   optionChoices,
+  rejectionOptionChoices,
 }: {
-  date: string;
-  entries: LogEntry[];
+  day: DayRecord<LogEntry, LogRejectionRow>;
   todaySql: string;
   optionChoices: LogOptionChoice[];
+  rejectionOptionChoices: OptionChoice[];
 }) {
+  const [open, setOpen] = useState<AddOpen>("none");
+
   return (
     <li className="border-b border-line py-sm">
-      <h3 className="pb-xs text-meta font-semibold tabular-nums text-muted">
-        {formatDinnerDate(date, todaySql)}
-      </h3>
+      <div className="flex items-center justify-between gap-sm pb-xs">
+        <h3 className="text-meta font-semibold tabular-nums text-muted">
+          {formatDinnerDate(day.date, todaySql)}
+        </h3>
+        <div className="flex gap-xs">
+          <button
+            type="button"
+            onClick={() => setOpen(open === "dinner" ? "none" : "dinner")}
+            aria-expanded={open === "dinner"}
+            className="min-h-11 rounded-control border border-line bg-surface px-sm py-xs text-meta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
+          >
+            + Dinner
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpen(open === "rejection" ? "none" : "rejection")}
+            aria-expanded={open === "rejection"}
+            className="min-h-11 rounded-control border border-line bg-surface px-sm py-xs text-meta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
+          >
+            + Rejection
+          </button>
+        </div>
+      </div>
       <ul className="flex flex-col gap-xs">
-        {entries.map((entry) => (
+        {day.entries.map((entry) => (
           <LogEntryRow
             key={entry.id}
             entry={entry}
             optionChoices={optionChoices}
           />
         ))}
+        {day.rejections.map((rejection) => (
+          <RejectionRow
+            key={rejection.id}
+            rejection={rejection}
+            optionChoices={optionChoices}
+          />
+        ))}
       </ul>
+      {open === "dinner" ? (
+        <div className="pt-sm">
+          <AddDinnerForm
+            optionChoices={optionChoices}
+            defaultDate={day.date}
+            onCancel={() => setOpen("none")}
+            onSaved={() => setOpen("none")}
+          />
+        </div>
+      ) : null}
+      {open === "rejection" ? (
+        <div className="pt-sm">
+          <AddRejectionForm
+            optionChoices={rejectionOptionChoices}
+            defaultDate={day.date}
+            onCancel={() => setOpen("none")}
+            onSaved={() => setOpen("none")}
+          />
+        </div>
+      ) : null}
     </li>
   );
 }

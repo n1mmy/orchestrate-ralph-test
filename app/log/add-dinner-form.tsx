@@ -5,26 +5,32 @@ import { logForDate } from "./actions";
 import type { LogOptionChoice } from "@/db/queries";
 
 /**
- * The "+ Add a dinner" form on the Log screen. Backed by
+ * The "+ Add a dinner" inline form. The Log screen renders it twice — once
+ * from `TopAddControls` at the top with `defaultDate` set to today, and again
+ * inside each `DayGroup` with the date pre-filled to that group's date so the
+ * Household never re-types a date it is already looking at. Backed by
  * `logForDate(optionId, eatenOn, note?)` — a past date backfills a forgotten
  * Dinner, a future date is a Planned dinner. A `(option_id, eaten_on)`
  * collision surfaces the inline "Already logged for that date" with the form
  * inputs preserved (per §17).
  *
- * The form starts collapsed as a single "+ Add a dinner" toggle so it does
- * not eat real estate when the Household is just reading the Log. Tapping it
- * expands the form in place with the Option, date, and note fields.
+ * The caller owns whether the form is shown — this component is the form
+ * body itself, with its own `Cancel` button wired to `onCancel` and a
+ * `onSaved` callback the caller uses to close it on success.
  */
 export function AddDinnerForm({
   optionChoices,
-  todaySql,
+  defaultDate,
+  onCancel,
+  onSaved,
 }: {
   optionChoices: LogOptionChoice[];
-  todaySql: string;
+  defaultDate: string;
+  onCancel: () => void;
+  onSaved: () => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [optionId, setOptionId] = useState(optionChoices[0]?.id ?? "");
-  const [eatenOn, setEatenOn] = useState(todaySql);
+  const [eatenOn, setEatenOn] = useState(defaultDate);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -34,18 +40,6 @@ export function AddDinnerForm({
       <p className="text-meta text-muted">
         Add an Option to the Catalog first → /catalog
       </p>
-    );
-  }
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="text-meta text-muted underline"
-      >
-        + Add a dinner
-      </button>
     );
   }
 
@@ -62,11 +56,7 @@ export function AddDinnerForm({
         setError(result.error);
         return;
       }
-      // Reset and collapse.
-      setOptionId(optionChoices[0]?.id ?? "");
-      setEatenOn(todaySql);
-      setNote("");
-      setOpen(false);
+      onSaved();
     });
   }
 
@@ -114,18 +104,15 @@ export function AddDinnerForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-control bg-action px-md py-xs text-meta text-action-ink disabled:opacity-60"
+          className="min-h-11 rounded-control bg-action px-md py-xs text-meta text-action-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action disabled:opacity-60"
         >
           {pending ? "Saving…" : "Add"}
         </button>
         <button
           type="button"
-          onClick={() => {
-            setOpen(false);
-            setError(null);
-          }}
+          onClick={onCancel}
           disabled={pending}
-          className="rounded-control border border-line bg-surface px-md py-xs text-meta"
+          className="min-h-11 rounded-control border border-line bg-surface px-md py-xs text-meta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-action"
         >
           Cancel
         </button>
