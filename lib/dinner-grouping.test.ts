@@ -156,6 +156,28 @@ describe("dinner-grouping", () => {
         "2026-05-15",
       ]);
     });
+
+    it("returns empty arrays for empty inputs", () => {
+      expect(groupByDay([], [], today)).toEqual({
+        upcoming: [],
+        history: [],
+      });
+    });
+
+    it("places a today-dated Rejection in History, not Upcoming", () => {
+      // Pin the exact today boundary for both entries and Rejections.
+      const entries = [entry("e-today", today)];
+      const rejections = [
+        rejection("r-today", today),
+        rejection("r-tomorrow", "2026-05-21"),
+      ];
+      const { upcoming, history } = groupByDay(entries, rejections, today);
+      expect(upcoming.map((r) => r.date)).toEqual(["2026-05-21"]);
+      expect(history.map((r) => r.date)).toEqual([today]);
+      // Same-date entry + rejection collapse into the today record.
+      expect(history[0].entries.map((e) => e.id)).toEqual(["e-today"]);
+      expect(history[0].rejections.map((r) => r.id)).toEqual(["r-today"]);
+    });
   });
 
   describe("formatDinnerDate", () => {

@@ -1,6 +1,6 @@
 # 15 — Log day grouping + Log Rejections UI + Option detail Rejection management
 
-Status: ready-for-agent
+Status: done
 Type: AFK
 
 ## Parent
@@ -58,43 +58,47 @@ The detail page gets **no** dated add-rejection form — creating a Rejection fo
 
 ### Interleaved day grouping
 
-- [ ] `lib/dinner-grouping.ts` exports a `DayRecord<E, R>` type with `date: string`, `entries: E[]`, and `rejections: R[]`, generic over `E extends { eatenOn: string }` and `R extends { rejectedOn: string }`
-- [ ] `groupByDay(entries, rejections, today)` returns `{ upcoming: DayRecord[]; history: DayRecord[] }`
-- [ ] A Log entry and a Rejection sharing a date converge on one `DayRecord`; a date with only Rejections still forms a record
-- [ ] Entries and Rejections keep the caller's input order within a record
-- [ ] The Upcoming/History split is exact at the today boundary — `date > today` is Upcoming, `date <= today` is History
-- [ ] Upcoming is returned soonest-first; History is returned newest-first
-- [ ] The module stays pure — no React, no DB import; it reads only `eatenOn` / `rejectedOn`
-- [ ] `groupByDate`, `splitDinners`, `Dinner<T>`, and `formatDinnerDate` are still exported and unchanged
-- [ ] `lib/dinner-grouping.test.ts` covers `groupByDay` with hand-built fixtures: same-date interleave, Rejection-only record, exact today-boundary split, ordering, input-order preservation, empty input
+- [x] `lib/dinner-grouping.ts` exports a `DayRecord<E, R>` type with `date: string`, `entries: E[]`, and `rejections: R[]`, generic over `E extends { eatenOn: string }` and `R extends { rejectedOn: string }`
+- [x] `groupByDay(entries, rejections, today)` returns `{ upcoming: DayRecord[]; history: DayRecord[] }`
+- [x] A Log entry and a Rejection sharing a date converge on one `DayRecord`; a date with only Rejections still forms a record
+- [x] Entries and Rejections keep the caller's input order within a record
+- [x] The Upcoming/History split is exact at the today boundary — `date > today` is Upcoming, `date <= today` is History
+- [x] Upcoming is returned soonest-first; History is returned newest-first
+- [x] The module stays pure — no React, no DB import; it reads only `eatenOn` / `rejectedOn`
+- [x] `groupByDate`, `splitDinners`, `Dinner<T>`, and `formatDinnerDate` are still exported and unchanged
+- [x] `lib/dinner-grouping.test.ts` covers `groupByDay` with hand-built fixtures: same-date interleave, Rejection-only record, exact today-boundary split, ordering, input-order preservation, empty input
 
 ### Log screen
 
-- [ ] `LogScreen` consumes `groupByDay(entries, rejections, today)` and renders interleaved `DayGroup`s — Log entries first, then Rejections; a Rejection-only date forms its own group
-- [ ] Future-dated groups (Planned dinners and Planned rejections) sit in a capped "Upcoming" strip (`UPCOMING_CAP = 5`) with a "+N more planned" line when the cap bites; past/today groups in History
-- [ ] The Log page route loads `getLogRejections()` and `getOptionChoices()` and passes them to `LogScreen`; the empty state shows only when entries and Rejections are both empty
-- [ ] Separate "+ Add a dinner" and "+ Add a rejection" controls at the top of the Log, each opening its inline form with a Cancel; each `DayGroup` offers "+ Dinner" / "+ Rejection" with the date pre-filled to the group's date
-- [ ] A new `app/log/rejection-row.tsx` exports `AddRejectionForm` and `RejectionRow`, sharing one internal `RejectionForm` body, built for reuse by the Option detail page
-- [ ] `AddRejectionForm` takes an Option select, a date, and an optional reason; calls `createRejection`; `onSaved` fires only on `ok`
-- [ ] `RejectionRow` shows the Option name (linked to its detail page) and the reason; Edit expands inline into the form (Option, date, reason → `updateRejection`); Delete uses the §17 inline-confirm and calls `deleteRejection`; both work regardless of the Rejection's age
-- [ ] A duplicate `(option_id, rejected_on)` on add or edit shows the inline "Already rejected for that date" error; a failed write is reported inline with `role="alert"`, never as success
-- [ ] A Rejection added/edited to today drops its Option off Tonight via the action revalidation; a past-dated one leaves Tonight unchanged — no new suppression code
-- [ ] Add, edit, delete, and confirm controls are keyboard-operable with visible focus and `min-h-11` touch targets; a saved edit announces "Saved" via `aria-live`
+- [x] `LogScreen` consumes `groupByDay(entries, rejections, today)` and renders interleaved `DayGroup`s — Log entries first, then Rejections; a Rejection-only date forms its own group
+- [x] Future-dated groups (Planned dinners and Planned rejections) sit in a capped "Upcoming" strip (`UPCOMING_CAP = 5`) with a "+N more planned" line when the cap bites; past/today groups in History
+- [x] The Log page route loads `getLogRejections()` and `getOptionChoices()` and passes them to `LogScreen`; the empty state shows only when entries and Rejections are both empty
+- [x] Separate "+ Add a dinner" and "+ Add a rejection" controls at the top of the Log, each opening its inline form with a Cancel; each `DayGroup` offers "+ Dinner" / "+ Rejection" with the date pre-filled to the group's date
+- [x] A new `app/log/rejection-row.tsx` exports `AddRejectionForm` and `RejectionRow`, sharing one internal `RejectionForm` body, built for reuse by the Option detail page
+- [x] `AddRejectionForm` takes an Option select, a date, and an optional reason; calls `createRejection`; `onSaved` fires only on `ok`
+- [x] `RejectionRow` shows the Option name (linked to its detail page) and the reason; Edit expands inline into the form (Option, date, reason → `updateRejection`); Delete uses the §17 inline-confirm and calls `deleteRejection`; both work regardless of the Rejection's age
+- [x] A duplicate `(option_id, rejected_on)` on add or edit shows the inline "Already rejected for that date" error; a failed write is reported inline with `role="alert"`, never as success
+- [x] A Rejection added/edited to today drops its Option off Tonight via the action revalidation; a past-dated one leaves Tonight unchanged — no new suppression code
+- [x] Add, edit, delete, and confirm controls are keyboard-operable with visible focus and `min-h-11` touch targets; a saved edit announces "Saved" via `aria-live`
 
 ### Option detail page
 
-- [ ] `app/catalog/[id]/page.tsx` loads `getOptionLog`, `getOptionRejections`, and `getOptionChoices` and builds its History section from `groupByDay(optionLog, optionRejections, todaySql)`
-- [ ] The merged History section renders future-dated groups first (`[...upcoming].reverse()`) then realized history newest-first, each date-group a `formatDinnerDate` header above that day's `EntryRow`s and `RejectionRow`s
-- [ ] An Option with no logged dinners and no Rejections shows "Nothing logged or rejected yet for this Option."
-- [ ] Every Rejection row (past, today, or future) offers inline Edit (Option, date, reason → `updateRejection`) and Delete (§17 inline-confirm → `deleteRejection`), reusing the shared `RejectionRow`
-- [ ] An edit producing a duplicate `(option_id, rejected_on)` shows the inline "Already rejected for that date" error
-- [ ] The detail page's today-only "Bring back" affordance is replaced by the always-available Delete
-- [ ] Editing or deleting a Rejection refreshes the detail page in place via the `/catalog/[id]` revalidation
-- [ ] No dated add-rejection form is added to the detail page; its existing live "Reject" control is unchanged
-- [ ] Tonight's "Rejected tonight" disclosure and its today-only "Bring back" quick-undo are unchanged
+- [x] `app/catalog/[id]/page.tsx` loads `getOptionLog`, `getOptionRejections`, and `getOptionChoices` and builds its History section from `groupByDay(optionLog, optionRejections, todaySql)`
+- [x] The merged History section renders future-dated groups first (`[...upcoming].reverse()`) then realized history newest-first, each date-group a `formatDinnerDate` header above that day's `EntryRow`s and `RejectionRow`s
+- [x] An Option with no logged dinners and no Rejections shows "Nothing logged or rejected yet for this Option."
+- [x] Every Rejection row (past, today, or future) offers inline Edit (Option, date, reason → `updateRejection`) and Delete (§17 inline-confirm → `deleteRejection`), reusing the shared `RejectionRow`
+- [x] An edit producing a duplicate `(option_id, rejected_on)` shows the inline "Already rejected for that date" error
+- [x] The detail page's today-only "Bring back" affordance is replaced by the always-available Delete
+- [x] Editing or deleting a Rejection refreshes the detail page in place via the `/catalog/[id]` revalidation
+- [x] No dated add-rejection form is added to the detail page; its existing live "Reject" control is unchanged
+- [x] Tonight's "Rejected tonight" disclosure and its today-only "Bring back" quick-undo are unchanged
 
 ## Blocked by
 
 - 12 — Rejected tonight disclosure + rejection-management server actions
 - 13 — Option detail page: core, merged History, Option-name links
 - 14 — Option detail page: Actions toolbar, Archived Options, Rejection history
+
+## Comments
+
+Built `app/log/rejection-row.tsx` exporting `AddRejectionForm` + `RejectionRow` over a shared internal `RejectionForm`; reworked `LogScreen` onto `groupByDay` with `TopAddControls` + per-`DayGroup` "+ Dinner" / "+ Rejection" buttons (date pre-fill), and the Option detail page now joins `getOptionRejections` into its merged History. Extended `dinner-grouping.test.ts` with the empty-input and exact-today-boundary cases for `groupByDay`. `pnpm typecheck`, `pnpm test`, `pnpm build` all green.

@@ -19,11 +19,14 @@ import { notFound } from "next/navigation";
 import { kindBarClass } from "@/app/kind-bar";
 import { RowChips } from "@/app/tonight-row";
 import { LogEntryRow } from "@/app/log/log-entry-row";
+import { RejectionRow } from "@/app/log/rejection-row";
 import {
   getAllOptionsForSelect,
   getAllTagNames,
   getOptionById,
+  getOptionChoices,
   getOptionLog,
+  getOptionRejections,
   getTonightData,
 } from "@/db/queries";
 import { formatDinnerDate, groupByDay } from "@/lib/dinner-grouping";
@@ -47,13 +50,21 @@ export default async function OptionDetailPage({ params }: { params: Params }) {
   }
 
   const todaySql = today();
-  const [tonightData, optionLog, selectableOptions, tagSuggestions] =
-    await Promise.all([
-      getTonightData(todaySql),
-      getOptionLog(option.id),
-      getAllOptionsForSelect(),
-      getAllTagNames(),
-    ]);
+  const [
+    tonightData,
+    optionLog,
+    optionRejections,
+    selectableOptions,
+    optionChoices,
+    tagSuggestions,
+  ] = await Promise.all([
+    getTonightData(todaySql),
+    getOptionLog(option.id),
+    getOptionRejections(option.id),
+    getAllOptionsForSelect(),
+    getOptionChoices(),
+    getAllTagNames(),
+  ]);
 
   const todayEpoch = epochDayFromSqlDate(todaySql);
   const activeLog: RankLogEntry[] = tonightData.entries.map((entry) => ({
@@ -90,11 +101,15 @@ export default async function OptionDetailPage({ params }: { params: Params }) {
     archived: !option.active,
   });
 
-  // History — for this slice the Rejections list is empty (the
-  // `getOptionRejections` query / `RejectionRow` component land in a
-  // later ticket); `groupByDay` already supports Rejections so the
-  // wiring is a one-line change there.
-  const { upcoming, history } = groupByDay(optionLog, [], todaySql);
+  // History — merged date-grouped activity. `groupByDay` collapses a
+  // same-date Log entry + Rejection into one record. Future-dated groups
+  // render first (reversed so the soonest sits closest to today), then
+  // realised history newest-first.
+  const { upcoming, history } = groupByDay(
+    optionLog,
+    optionRejections,
+    todaySql,
+  );
   const activity = [...upcoming].reverse().concat(history);
 
   const hasDetails =
@@ -243,7 +258,13 @@ export default async function OptionDetailPage({ params }: { params: Params }) {
                     options={selectableOptions}
                   />
                 ))}
-                {/* RejectionRow renders here once ticket 10 / 14 land it. */}
+                {group.rejections.map((rejection) => (
+                  <RejectionRow
+                    key={rejection.id}
+                    rejection={rejection}
+                    optionChoices={optionChoices}
+                  />
+                ))}
               </ul>
             </div>
           ))
