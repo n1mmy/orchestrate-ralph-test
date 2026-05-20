@@ -9,3 +9,15 @@
 export type ActionResult<T = void> =
   | (T extends void ? { ok: true } : { ok: true; value: T })
   | { ok: false; error: string };
+
+/**
+ * Normalise a free-text field for the DB: trim it, and if what remains is
+ * empty, store `null` rather than a zero-length string. Used by the
+ * Rejection action (optional reason) and any other action that treats
+ * "blank" the same as "absent".
+ */
+export function trimToNull(raw: string | null | undefined): string | null {
+  if (raw == null) return null;
+  const trimmed = raw.trim();
+  return trimmed === "" ? null : trimmed;
+}

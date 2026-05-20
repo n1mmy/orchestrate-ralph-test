@@ -16,7 +16,7 @@
 import { and, asc, desc, eq, lte } from "drizzle-orm";
 
 import { db } from "./index";
-import { dinnerLog, options, optionTags, tags } from "./schema";
+import { dinnerLog, options, optionTags, rejections, tags } from "./schema";
 
 /**
  * Every Tag name currently in the catalog, ascending. Feeds the `TagInput`
@@ -503,4 +503,54 @@ export async function getAllTags(): Promise<TagRow[]> {
     .select({ id: tags.id, name: tags.name })
     .from(tags)
     .orderBy(asc(tags.name));
+}
+
+/**
+ * Today's Rejections joined to their (active) Option. Drives the Tonight
+ * screen's `rejectedIds` Set and any "Rejected tonight" surface. Joined
+ * inner to `options` filtered by `active = true` so an Archived Option's
+ * dangling Rejection doesn't surface in the picker filter; the same
+ * `getAiSearchSnapshotInput` join elsewhere uses the same filter for the
+ * same reason.
+ *
+ * Newest first by `created_at` — the latest Rejection sits at the top of
+ * any "Rejected tonight" disclosure.
+ */
+export type TodayRejection = {
+  /** The `rejections.id` — the handle a "Bring back" action takes. */
+  id: string;
+  /** The rejected Option's id. */
+  optionId: string;
+  /** The Option's display name (active Options only). */
+  optionName: string;
+  /** The reason the Household typed, or `null` when they left it blank. */
+  reason: string | null;
+};
+
+export async function getTodayRejections(
+  todaySqlDate: string,
+): Promise<TodayRejection[]> {
+  const rows = await db
+    .select({
+      id: rejections.id,
+      optionId: rejections.optionId,
+      optionName: options.name,
+      reason: rejections.reason,
+    })
+    .from(rejections)
+    .innerJoin(options, eq(rejections.optionId, options.id))
+    .where(
+      and(
+        eq(rejections.rejectedOn, todaySqlDate),
+        eq(options.active, true),
+      ),
+    )
+    .orderBy(desc(rejections.createdAt));
+
+  return rows.map((row) => ({
+    id: row.id,
+    optionId: row.optionId,
+    optionName: row.optionName,
+    reason: row.reason,
+  }));
 }

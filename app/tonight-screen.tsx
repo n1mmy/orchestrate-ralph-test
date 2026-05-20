@@ -29,6 +29,13 @@ type Props = {
    * search box is hidden entirely — the screen is exactly v1.
    */
   searchEnabled: boolean;
+  /**
+   * True when the Catalog had pickable Options but every one of them has
+   * been Rejected for tonight. Distinguishes "every Option rejected for
+   * tonight" from "Catalog is empty". Picker-mode only — decided mode
+   * shows the decided block regardless.
+   */
+  allRejected: boolean;
 };
 
 /** A single AI-search result hit — UUID + AI rationale. */
@@ -55,6 +62,7 @@ export function TonightScreen({
   pickerRows,
   tonightsDinner,
   searchEnabled,
+  allRejected,
 }: Props) {
   const [kind, setKind] = useState<KindFilter>("all");
   const [tagFilters, setTagFilters] = useState<TagFilters>({});
@@ -146,6 +154,22 @@ export function TonightScreen({
       : aiError !== null
         ? aiError
         : "Showing the deterministic ranking.";
+
+  // Every remaining picker row was Rejected for tonight — distinct from
+  // the empty-Catalog branch below. The Catalog still has Options; the
+  // Household just turned them all down today, and they will be back
+  // tomorrow with no day-boundary logic on the server side.
+  if (!decided && allRejected) {
+    return (
+      <main className="column">
+        <h1 className="py-lg font-display text-h1 text-ink">Tonight</h1>
+        <p className="text-body text-muted">
+          Every Option has been rejected for tonight. They&apos;ll be back
+          tomorrow.
+        </p>
+      </main>
+    );
+  }
 
   // Empty Catalog (no rows even before splitting) — the original prompt.
   if (!decided && pickerRows.length === 0) {

@@ -29,6 +29,16 @@ function isPgLikeError(value: unknown): value is PgLikeError {
   );
 }
 
+/**
+ * Exported type-guard for callers that translate a SQLSTATE themselves
+ * rather than going through `pgErrorMessage`. `rejectOption` collapses
+ * `22P02` and `23503` to the same friendly message; it needs the same
+ * "is this a Postgres-shaped error" check.
+ */
+export function isPgError(value: unknown): value is PgLikeError {
+  return isPgLikeError(value);
+}
+
 function constraintOf(error: PgLikeError): string | undefined {
   return error.constraint_name ?? error.constraint;
 }

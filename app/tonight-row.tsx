@@ -9,6 +9,7 @@ import {
 
 import { kindBarClass } from "./kind-bar";
 import { PickButton } from "./pick-button";
+import { RejectControl } from "./reject-control";
 
 type Props = {
   row: TonightRowData;
@@ -106,7 +107,12 @@ export function TonightRow({ row, rank, variant = "tonight", aiReason }: Props) 
           </p>
         ) : null}
       </div>
-      {variant === "tonight" ? <PickButton optionId={row.option.id} /> : null}
+      {variant === "tonight" ? (
+        <div className="flex flex-col items-end gap-2xs">
+          <PickButton optionId={row.option.id} />
+          <RejectControl optionId={row.option.id} />
+        </div>
+      ) : null}
     </li>
   );
 }
