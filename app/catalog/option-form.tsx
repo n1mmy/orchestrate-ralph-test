@@ -8,6 +8,7 @@ import {
   createOption,
   updateOption,
 } from "./actions";
+import { TagInput } from "./tag-input";
 import { TextArea, TextField } from "./text-field";
 
 export type OptionFormInitial = {
@@ -21,12 +22,14 @@ export type OptionFormInitial = {
   lat?: number | null;
   lng?: number | null;
   googlePlaceId?: string | null;
+  tags?: string[];
 };
 
 type Props = {
   kind: OptionKind;
   initial?: OptionFormInitial;
   onDone: () => void;
+  tagSuggestions: string[];
 };
 
 function parseNumber(raw: string): number | null {
@@ -46,7 +49,7 @@ function parseNumber(raw: string): number | null {
  * form stays open. On `{ ok: true }` the form calls `onDone` so the parent
  * can collapse it back; `revalidatePath` then refreshes the list in place.
  */
-export function OptionForm({ kind, initial, onDone }: Props) {
+export function OptionForm({ kind, initial, onDone, tagSuggestions }: Props) {
   const idBase = useId();
   const [name, setName] = useState(initial?.name ?? "");
   const [url, setUrl] = useState(initial?.url ?? "");
@@ -63,6 +66,7 @@ export function OptionForm({ kind, initial, onDone }: Props) {
   const [googlePlaceId, setGooglePlaceId] = useState(
     initial?.googlePlaceId ?? "",
   );
+  const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -81,6 +85,7 @@ export function OptionForm({ kind, initial, onDone }: Props) {
       lat: parseNumber(lat),
       lng: parseNumber(lng),
       googlePlaceId: googlePlaceId === "" ? null : googlePlaceId,
+      tags,
     };
     startTransition(async () => {
       const result =
@@ -179,6 +184,12 @@ export function OptionForm({ kind, initial, onDone }: Props) {
           />
         </>
       )}
+      <TagInput
+        id={`${idBase}-tags`}
+        value={tags}
+        onChange={setTags}
+        suggestions={tagSuggestions}
+      />
       {error ? (
         <p id={`${idBase}-error`} className="text-meta text-danger">
           {error}

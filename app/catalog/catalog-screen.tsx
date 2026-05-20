@@ -3,6 +3,7 @@ import type { ActiveCatalog } from "@/db/queries";
 
 type Props = {
   catalog: ActiveCatalog;
+  tagSuggestions: string[];
 };
 
 /**
@@ -10,7 +11,7 @@ type Props = {
  * Identical on phone and desktop (a single `.column`). Empty Catalog shows
  * the §17 placeholder line.
  */
-export function CatalogScreen({ catalog }: Props) {
+export function CatalogScreen({ catalog, tagSuggestions }: Props) {
   const empty = catalog.home.length === 0 && catalog.restaurants.length === 0;
 
   return (
@@ -26,12 +27,14 @@ export function CatalogScreen({ catalog }: Props) {
         kind="home"
         rows={catalog.home}
         addLabel="+ Add a meal"
+        tagSuggestions={tagSuggestions}
       />
       <OptionSection
         title="Restaurants"
         kind="restaurant"
         rows={catalog.restaurants}
         addLabel="+ Add a restaurant"
+        tagSuggestions={tagSuggestions}
       />
     </main>
   );

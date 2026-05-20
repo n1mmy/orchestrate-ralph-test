@@ -12,6 +12,18 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "./index";
 import { options, optionTags, tags } from "./schema";
 
+/**
+ * Every Tag name currently in the catalog, ascending. Feeds the `TagInput`
+ * autocomplete suggestions on the Catalog form.
+ */
+export async function getAllTagNames(): Promise<string[]> {
+  const rows = await db
+    .select({ name: tags.name })
+    .from(tags)
+    .orderBy(asc(tags.name));
+  return rows.map((row) => row.name);
+}
+
 export type CatalogRow = {
   id: string;
   name: string;
