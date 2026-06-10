@@ -13,3 +13,7 @@ Five canonical triage roles, using the default label strings. See `docs/agents/t
 ### Domain docs
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Ralph loop
+
+Loop config and worker permissions. See `docs/agents/ralph.md`.

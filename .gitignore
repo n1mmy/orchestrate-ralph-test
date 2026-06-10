@@ -4,3 +4,7 @@
 # Conversation handoff documents
 handoff.md
 HANDOFF.md
+
+# Python bytecode (e.g. from validating .ralph/hook-path-guard.py)
+__pycache__/
+*.pyc

@@ -1,0 +1,55 @@
+{
+  "permissions": {
+    "defaultMode": "dontAsk",
+    "allow": [
+      "Write",
+      "Read",
+      "Edit",
+      "Glob",
+      "Grep",
+      "Agent",
+      "Bash(git:*)",
+      "Bash(rg:*)",
+      "Bash(ugrep:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(bfs:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(ls:*)",
+      "Bash(command -v:*)",
+      "Bash(which:*)",
+      "Bash(test:*)",
+      "Bash(echo:*)",
+      "Bash(bash check.sh:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue view:*)",
+      "Bash(gh issue edit:*)",
+      "Bash(gh issue comment:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "Bash(git clone:*)",
+      "Bash(git ls-remote:*)",
+      "Bash(git remote:*)",
+      "Bash(cd:*)",
+      "Bash(git -C:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.ralph/hook-path-guard.py\""
+          }
+        ]
+      }
+    ]
+  }
+}
